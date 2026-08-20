@@ -1,7 +1,14 @@
 # Apex
 
 A memory trainer for Formula 1, built for the phone and paced by the race
-calendar.
+calendar. There is no daily streak to keep and nothing goes stale overnight —
+you pick it up in the days before a Grand Prix and put it down again.
+
+It is a Progressive Web App: no install, no account, no build step, and it
+pulls **nothing** from the network, not even a font. Add it to the home screen
+and it runs full-screen and offline. Everything stays on that phone.
+
+**<https://charles-byte.github.io/Apex-F1/>**
 
 ## The loop is one check per Grand Prix
 
@@ -33,15 +40,6 @@ Three background sections sit under the check and never nag:
 
 Practice is just reps: ten questions, weakest first. It carries nothing
 forward and touches nothing in your race record.
-
-It runs on the race calendar, not the clock. There is no daily streak to keep
-and nothing goes stale overnight — you pick it up in the days before a Grand
-Prix and put it down again.
-
-It is a Progressive Web App: no install, no account, no build step, and it
-pulls **nothing** from the network, not even a font. Open it in a browser, add
-it to the home screen, and it runs full-screen and offline. Everything stays on
-that phone.
 
 ## The maps are real
 
