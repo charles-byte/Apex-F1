@@ -166,7 +166,13 @@ node build/icons.mjs           # regenerate the app icons
 ```
 
 `test.mjs` drives headless Chromium at phone dimensions and writes screenshots
-to `build/shots/`.
+to `build/shots/`. It runs against a **frozen clock of 20 August 2026** —
+between Hungary and Zandvoort — because every behaviour in the app hangs off
+where the calendar says you are, and a suite that drifted with the real date
+would test something different every week.
+
+Playwright is the only dependency, and only for `test.mjs`; `test-data.mjs`,
+`maps.mjs` and the app itself run on a bare Node and a bare browser.
 
 **After changing `app.css`, `app.js` or anything in `data/`, bump `CACHE` in
 `sw.js`** — otherwise phones that already installed the app keep serving the
