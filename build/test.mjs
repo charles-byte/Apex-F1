@@ -38,10 +38,9 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-/* Google Fonts is unreachable in a sandbox; the app has to survive that, so
-   note those separately rather than counting them as app errors. */
+/* The app should reach nothing outside its own origin: no webfont, no CDN. */
 const external = [];
-page.on("requestfailed", (r) => { if (new URL(r.url()).origin !== base) external.push(r.url()); });
+page.on("request", (r) => { if (new URL(r.url()).origin !== base) external.push(r.url()); });
 
 await page.goto(base + "/index.html");
 await page.waitForSelector(".hero", { timeout: 8000 });
@@ -110,13 +109,28 @@ check("2026 circuits listed", tiles === 24, `saw ${tiles}`);
 await page.screenshot({ path: join(SHOTS, "05-circuits.png") });
 await page.locator(".seg button", { hasText: "All 2020+" }).click();
 const all = await page.locator(".trackcard").count();
-check("all circuits listed", all === 33, `saw ${all}`);
-const emptyMaps = await page.evaluate(() =>
-  [...document.querySelectorAll(".trackcard path")].filter((p) => {
+check("all circuits listed", all === 32, `saw ${all}`);
+/* Outlines are fitted with one uniform scale, so a circuit fills the box on
+   its long axis and keeps its true proportions on the short one — Jeddah is
+   genuinely a thin ribbon and should render as one. */
+const badMaps = await page.evaluate(() =>
+  [...document.querySelectorAll(".trackcard path")].map((p) => {
     const b = p.getBBox();
-    return b.width < 200 || b.height < 200;
-  }).map((p) => p.closest(".trackcard").querySelector("b").textContent));
-check("every outline fills its box", emptyMaps.length === 0, emptyMaps.join(", "));
+    return { name: p.closest(".trackcard").querySelector("b").textContent,
+             long: Math.max(b.width, b.height), short: Math.min(b.width, b.height) };
+  }).filter((m) => m.long < 780 || m.short < 40));
+check("every outline fills its box on the long axis", badMaps.length === 0,
+  badMaps.map((m) => `${m.name} ${Math.round(m.long)}x${Math.round(m.short)}`).join(", "));
+
+const aspects = await page.evaluate(() =>
+  [...document.querySelectorAll(".trackcard path")].map((p) => {
+    const b = p.getBBox();
+    return { name: p.closest(".trackcard").querySelector("b").textContent,
+             ratio: +(Math.max(b.width, b.height) / Math.min(b.width, b.height)).toFixed(2) };
+  }));
+const ribbon = aspects.find((a) => a.name === "Jeddah");
+check("true proportions are kept, not stretched to fit", ribbon && ribbon.ratio > 2,
+  ribbon ? `Jeddah ${ribbon.ratio}:1` : "no Jeddah");
 await page.locator(".trackcard").first().click();
 await page.waitForSelector(".sheet .facts");
 await page.screenshot({ path: join(SHOTS, "06-circuit-detail.png") });
@@ -205,11 +219,11 @@ for (const tab of ["Train", "Circuits", "Season", "Record"]) {
   check(`${tab} fits the screen`, !over);
 }
 
-const appErrors = errors.filter((e) => !/Failed to load resource|ERR_CONNECTION|ERR_FAILED/.test(e));
-check("no runtime errors", appErrors.length === 0, appErrors.slice(0, 3).join(" | "));
-check("nothing but fonts went to the network", external.every((u) => /fonts\.(googleapis|gstatic)/.test(u)),
-  external.filter((u) => !/fonts\./.test(u)).join(", "));
-check("app renders without its webfont", await page.locator(".title").first().isVisible());
+check("no runtime errors", errors.length === 0, errors.slice(0, 3).join(" | "));
+check("the app makes no external requests at all", external.length === 0, external.slice(0, 3).join(", "));
+check("text renders in the system font stack",
+  /Samsung Sans|Verdana/.test(await page.evaluate(() =>
+    getComputedStyle(document.body).fontFamily)));
 
 await browser.close();
 server.close();

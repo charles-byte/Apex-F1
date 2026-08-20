@@ -23,8 +23,10 @@
   --radius-sm: 10px;
   --shadow: 0 10px 30px rgba(0,0,0,.45);
   --tap: rgba(255,255,255,.05);
-  --font: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Samsung Sans on a Galaxy, Verdana everywhere else. Both are already on
+     the device, so the app pulls nothing from the network at all. */
+  --font: "Samsung Sans", "SamsungOne", Verdana, Geneva, Tahoma, sans-serif;
+  --mono: "Samsung Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 html[data-theme="light"] {
@@ -52,8 +54,9 @@ html, body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.45;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
@@ -88,7 +91,7 @@ a { color: var(--accent); }
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; margin-bottom: 18px;
 }
-.title { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
+.title { font-size: 23px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
 .sub { color: var(--dim); font-size: 13.5px; margin: 2px 0 0; }
 .kicker {
   font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
@@ -114,7 +117,7 @@ a { color: var(--accent); }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 13px 18px; border-radius: 12px; font-weight: 600; font-size: 15.5px;
+  padding: 12px 16px; border-radius: 12px; font-weight: 600; font-size: 14.5px;
   background: var(--surface2); border: 1px solid var(--line);
   transition: transform .08s ease, background .15s ease;
 }
@@ -153,7 +156,7 @@ a { color: var(--accent); }
 .nav-inner { display: flex; width: 100%; max-width: 580px; }
 .nav button {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 7px 4px 5px; color: var(--dim2); font-size: 10.5px; font-weight: 600;
+  padding: 7px 4px 5px; color: var(--dim2); font-size: 9.5px; font-weight: 600;
   border-radius: 10px; letter-spacing: .02em;
 }
 .nav button.on { color: var(--ink); }
@@ -168,7 +171,7 @@ a { color: var(--accent); }
     var(--surface);
   border: 1px solid var(--line); border-radius: 18px; padding: 20px; margin-bottom: 14px;
 }
-.hero h2 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.015em; }
+.hero h2 { margin: 0 0 4px; font-size: 19px; letter-spacing: -.015em; }
 .hero p { margin: 0 0 16px; color: var(--dim); font-size: 14px; }
 
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -176,7 +179,7 @@ a { color: var(--accent); }
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 12px; padding: 12px 10px; text-align: center;
 }
-.tile b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.tile b { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
 .tile span { display: block; font-size: 11px; color: var(--dim2); margin-top: 2px; }
 
 .secgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -185,7 +188,7 @@ a { color: var(--accent); }
   padding: 14px; text-align: left; position: relative; overflow: hidden;
 }
 .sec.off { opacity: .45; }
-.sec b { display: block; font-size: 15px; margin-bottom: 2px; }
+.sec b { display: block; font-size: 14px; margin-bottom: 2px; }
 .sec span { font-size: 12px; color: var(--dim); }
 .sec .meter { margin-top: 10px; }
 .sec::after {
@@ -203,13 +206,13 @@ a { color: var(--accent); }
 .progress { flex: 1; height: 4px; background: var(--surface2); border-radius: 999px; overflow: hidden; }
 .progress i { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
 
-.prompt { font-size: 20px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 4px; line-height: 1.3; }
+.prompt { font-size: 18px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 4px; line-height: 1.3; }
 .prompt-sub { color: var(--dim); font-size: 13.5px; margin: 0 0 16px; }
 
 .opts { display: flex; flex-direction: column; gap: 9px; }
 .opt {
   display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
-  padding: 14px 15px; border-radius: 12px; font-size: 15.5px; font-weight: 500;
+  padding: 13px 14px; border-radius: 12px; font-size: 14.5px; font-weight: 500;
   background: var(--surface); border: 1px solid var(--line);
   transition: background .12s ease, border-color .12s ease, transform .08s ease;
 }
@@ -271,12 +274,12 @@ a { color: var(--accent); }
 /* ------------------------------------------------------------- maps */
 .map { width: 100%; display: block; }
 .map path {
-  fill: none; stroke: var(--ink); stroke-width: 22;
+  fill: none; stroke: var(--ink); stroke-width: 20;
   stroke-linecap: round; stroke-linejoin: round;
 }
-.mapbox.lg .map path { stroke-width: 13; }
-.trackcard .map path { stroke-width: 30; }
-.round .map path { stroke-width: 44; }
+.mapbox.lg .map path { stroke-width: 12; }
+.trackcard .map path { stroke-width: 26; }
+.round .map path { stroke-width: 46; }
 .opt-maps .map path { stroke-width: 26; }
 .map .glow { stroke: var(--accent); stroke-width: 30; opacity: .18; }
 .mapbox {
@@ -289,7 +292,7 @@ a { color: var(--accent); }
 .trackgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .trackcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; text-align: center; }
 .trackcard .mapbox { background: transparent; padding: 2px; }
-.trackcard b { display: block; font-size: 11.5px; font-weight: 600; margin-top: 4px; letter-spacing: -.01em; }
+.trackcard b { display: block; font-size: 10.5px; font-weight: 600; margin-top: 4px; letter-spacing: -.01em; }
 .trackcard span { font-size: 10px; color: var(--dim2); font-family: var(--mono); }
 .trackcard.seen { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
 

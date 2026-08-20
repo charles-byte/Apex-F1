@@ -1,6 +1,6 @@
 /* Offline shell for Apex.
    Bump CACHE when any asset below changes, so phones pick up the new build. */
-const CACHE = "apex-f1-v1";
+const CACHE = "apex-f1-v2";
 const ASSETS = [
   "./", "./index.html", "./app.css", "./app.js",
   "./data/champions.json", "./data/lineups.json",
@@ -25,18 +25,6 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-
-  // Google Fonts: cache opportunistically, never block on the network.
-  if (url.origin.includes("fonts.googleapis.com") || url.origin.includes("fonts.gstatic.com")) {
-    e.respondWith(
-      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
-        return res;
-      }).catch(() => hit))
-    );
-    return;
-  }
 
   if (url.origin !== location.origin) return;
 

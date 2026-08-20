@@ -7,6 +7,7 @@ const champs = read("champions.json");
 const lineups = read("lineups.json");
 const circuits = read("circuits.json");
 const season = read("season-2026.json");
+const geo = read("f1-circuits.geojson");
 
 let fails = 0;
 function check(label, cond, extra = "") {
@@ -66,19 +67,41 @@ for (const s of champs.seasons) {
 /* --------------------------------------------------------------- circuits */
 const ids = circuits.circuits.map((c) => c.id);
 check("circuit ids are unique", uniq(ids).length === ids.length);
+check("every circuit has survey geometry", circuits.circuits.every((c) => c.osmId && c.points > 0));
 for (const c of circuits.circuits) {
   check(`${c.short} is fully described`,
     c.lengthKm > 2 && c.lengthKm < 8 && c.turns > 6 && c.turns < 30 &&
     c.laps > 30 && c.laps < 90 && c.firstGp >= 1950 && c.firstGp <= 2026 &&
     ["clockwise", "anti-clockwise"].includes(c.direction) && !!c.signature,
     `${c.lengthKm}km ${c.turns}t ${c.laps}laps ${c.firstGp} ${c.direction}`);
-  check(`${c.short} outline is a closed path in the 1000 box`,
-    /^M [\d.]+ [\d.]+/.test(c.path) && /Z$/.test(c.path) &&
-    (c.path.match(/-?\d+\.?\d*/g) || []).every((n) => Math.abs(+n) <= 1000));
+  check(`${c.short} outline is a closed polyline inside the 1000 box`,
+    /^M [\d.]+ [\d.]+( L [\d.]+ [\d.]+)+ Z$/.test(c.path) &&
+    (c.path.match(/[\d.]+/g) || []).every((n) => +n >= 0 && +n <= 1000));
+  check(`${c.short} outline keeps every surveyed point`,
+    c.points >= 60 && c.path.split(" L ").length === c.points);
   check(`${c.short} only claims seasons it could have raced`,
     c.used.every((y) => y >= 2020 && y <= 2026));
   if (c.round2026) check(`${c.short} is listed as racing in 2026`, c.used.includes(2026));
 }
+/* The outline has to be the right circuit, not just a plausible one: walking
+   the traced ring has to come back within a couple of percent of the lap
+   length published for it. */
+const R = 6371008.8, rad = Math.PI / 180;
+for (const c of circuits.circuits) {
+  const f = geo.features.find((x) => x.properties.id === c.osmId);
+  check(`${c.short} is linked to survey geometry`, !!f, c.osmId);
+  if (!f) continue;
+  const co = f.geometry.coordinates;
+  const lat0 = co.reduce((a, p) => a + p[1], 0) / co.length;
+  const k = Math.cos(lat0 * rad);
+  const xy = co.map(([lon, lat]) => [R * rad * lon * k, R * rad * lat]);
+  let len = 0;
+  for (let i = 1; i < xy.length; i++) len += Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
+  const drift = Math.abs(len / 1000 - c.lengthKm) / c.lengthKm;
+  check(`${c.short} traces to its published lap length`, drift < 0.02,
+    `${(len / 1000).toFixed(3)} km traced vs ${c.lengthKm} km stated`);
+}
+
 const rounds = circuits.circuits.filter((c) => c.round2026).map((c) => c.round2026).sort((a, b) => a - b);
 check("2026 rounds are exactly 1..24", rounds.length === 24 && rounds.every((r, i) => r === i + 1));
 

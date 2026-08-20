@@ -1,18 +1,52 @@
 # Apex
 
-A memory trainer for Formula 1, built for the phone. It drills four things:
+A memory trainer for Formula 1, built for the phone. Four things it drills:
 
 | Section | What it asks |
 |---|---|
 | **Championships** | Drivers' and constructors' titles 2008–2025, runners-up, final top-five order, title margins, and "which season finished like this?" |
 | **The 2026 season** | Finishing orders, poles, front rows, sprint winners and biggest movers — from results you enter as each race happens |
-| **Circuits** | Every layout raced from 2020 onwards in its latest form, plus Sepang: identify the map, pick the map, length, corners, direction, lap count, first Grand Prix, calendar position |
+| **Circuits** | Every layout raced from 2020 onwards, plus Sepang: identify the map, pick the map, length, corners, direction, lap count, first Grand Prix, calendar position |
 | **Grids** | Who drove for whom, 2008–2026 — team-mates, seats, team counts, and identifying a season from three lineups |
 
-Around 930 questions before a single race is entered, and it is a Progressive
-Web App: no install, no account, no build step. Open it in Safari, add it to
-the home screen, and it runs full-screen and offline. Everything stays in that
-phone's local storage.
+Around 900 questions before a single race is entered. It is a Progressive Web
+App: no install, no account, no build step, and it pulls **nothing** from the
+network — not even a font. Open it in a browser, add it to the home screen,
+and it runs full-screen and offline. Everything stays on that phone.
+
+## The maps are real
+
+The circuit outlines are not illustrations. Every one is traced from
+OpenStreetMap survey coordinates — the same data that draws the track on a
+map — via [`bacinger/f1-circuits`](https://github.com/bacinger/f1-circuits)
+(MIT), vendored into `data/f1-circuits.geojson`.
+
+`build/maps.mjs` applies only the transforms you cannot avoid when putting a
+piece of the round earth on a flat screen:
+
+- **project** — lon/lat to metres, equirectangular with a cos(latitude)
+  correction, so each circuit keeps its true proportions
+- **orient** — north stays up. No rotation to match a broadcast graphic
+- **fit** — one uniform scale into a shared 1000-unit box, so nothing is
+  stretched. Jeddah renders at 4.7:1 because Jeddah *is* 4.7:1
+
+Every surveyed point is kept — 80 to 200 per circuit. No simplification, no
+smoothing, nothing redrawn by hand.
+
+The check that this is the right geometry and not merely plausible geometry:
+walking each traced ring and comparing it to the lap length F1 publishes for
+that circuit. All 32 land within 1%, and `build/test-data.mjs` fails the build
+if any drifts past 2%.
+
+```bash
+node build/maps.mjs --report    # rebuild every outline, with the length check
+```
+
+`build/shots/maps.html` is a contact sheet of all 32.
+
+The one casualty: the **Bahrain Outer Circuit**, used once for the 2020 Sakhir
+GP, has no survey geometry of its own, and drawing it by hand would be exactly
+the thing this section refuses to do. It is left out.
 
 ## How the drilling works
 
@@ -24,9 +58,9 @@ A session pulls **what is due first**, then **what has never been asked**, then
 the **weakest of everything else**. So the queue drains before it grows, and
 nothing you already know keeps coming back.
 
-The distractors are re-drawn every time a question is asked, so you cannot
-learn "the answer is the third one". Ordering questions are all-or-nothing:
-one place out is a miss, and the correct order is shown against yours.
+Distractors are re-drawn every time a question is asked, so you cannot learn
+"the answer is the third one". Ordering questions are all-or-nothing: one place
+out is a miss, and the right order is shown against yours.
 
 Tap a section to drill it alone. Long-press to drop it out of mixed sessions.
 
@@ -34,44 +68,31 @@ Tap a section to drill it alone. Long-press to drop it out of mixed sessions.
 
 The season file ships with the calendar and the entry list but no results —
 that is the part you keep up to date. **Season → a round → Add**, then tap
-drivers in order. Three deep is enough to generate podium and winner
-questions; go to ten if you want to be tested that far down. Qualifying and
-sprint are separate and optional.
+drivers in order. Three deep is enough for podium and winner questions; go to
+ten if you want to be tested that far down. Qualifying and sprint are separate
+and optional.
 
-Everything you enter becomes questions in the next session, and the championship
-table on the Season tab is computed from it — including sprint points, so it
-stays honest about what you have actually entered.
+Everything you enter becomes questions in the next session, and the standings
+on the Season tab are computed from it, sprint points included.
 
-To keep the results with the repo rather than only on the phone,
+To keep results with the repo rather than only on the phone,
 **Settings → Export the 2026 results** and paste the JSON into the `results`
-field of `data/season-2026.json`. Anything in there seeds a fresh device
-without overwriting what that device already has.
+field of `data/season-2026.json`. Anything there seeds a fresh device without
+overwriting what that device already has.
 
-## About the data
+## Type
 
-There is no timing feed behind this. The championship standings, grids and
-circuit facts were written by hand into `data/`, and **the circuit outlines are
-stylised traces** — they get the topology right (Suzuka crosses itself, Baku
-has its two-kilometre straight, Monza is a triangle, Vegas runs out and back)
-but they are not survey-accurate, and a few are only loosely evocative of the
-real thing. They are drawn to be told apart from one another, which is what
-the map quiz needs; they are not a reference.
+Samsung Sans where it exists, Verdana everywhere else. Both are already on the
+device, which is why the app has no webfont and no external requests at all —
+a test asserts it.
 
-Two ways to make it better:
+## About the rest of the data
 
-- **Fix a shape by hand.** `build/tracks.mjs` holds each circuit as a list of
-  waypoints in lap order. Move a point, run `node build/maps.mjs`, and check
-  `build/shots/maps.html` — a contact sheet of all 33.
-- **Replace them all with real geometry.** If you can reach a public GeoJSON of
-  circuit centrelines, `node build/import-maps.mjs circuits.geojson` projects,
-  simplifies and fits each one into the same 1000-unit box. It matches features
-  to circuits by name and city, skips what it cannot match, and tells you what
-  it left alone — so a partial import is safe. Add `--dry` to see the matches
-  without writing.
-
-If you find a fact wrong, it is one line in `data/` and it flows straight
-through to the questions. `node build/test-data.mjs` will tell you if the fix
-contradicts something else.
+The standings, grids and circuit facts were written by hand into `data/` — no
+timing feed was reachable when this was built. Facts that overlap with the
+survey data are cross-checked against it. If you find something wrong, it is
+one line in `data/`, and it flows straight through to the questions;
+`node build/test-data.mjs` will tell you if the fix contradicts something else.
 
 Some seasons carry more detail than others: standings 2008–2024 include points,
 2025 is order only.
@@ -83,50 +104,47 @@ Any static file server. The app fetches the files in `data/`, so opening
 
 ```bash
 python3 -m http.server 8000
-# then open http://localhost:8000/f1/
 ```
 
-## Putting it on your phone
-
-It needs **HTTPS from a real domain** for the service worker — and therefore
-offline mode and home-screen install — to work at all.
-
-1. Deploy the repo to Cloudflare Pages, Netlify or Vercel. No build command,
-   output directory `/`. This app lives at `/f1/`.
-2. Open that URL in **Safari** on the phone — iOS only offers the install from
-   Safari — then **Share → Add to Home Screen.**
+For the home-screen install and offline mode you need **HTTPS from a real
+domain** — that is what makes the service worker work. Deploy to Cloudflare
+Pages, Netlify or Vercel with no build command and output directory `/`, then
+open it on the phone and **Add to Home Screen**.
 
 ## Layout
 
 ```
-index.html            app shell
-app.css               all styling; tokens for dark, light and system
-app.js                question bank, scheduling, and every view
-data/champions.json   final standings 2008-2025, plus the famous title margins
-data/lineups.json     every team's driver pairing 2008-2026, with mid-season changes
-data/circuits.json    33 circuits: facts and outlines
-data/season-2026.json the 2026 calendar and entry list; results land here
-manifest.webmanifest  name, icons, standalone display
-sw.js                 offline cache. Bump CACHE when you change an asset.
-icons/                app icons
-build/                map tooling and the test suite
+index.html               app shell
+app.css                  all styling; tokens for dark, light and system
+app.js                   question bank, scheduling, and every view
+data/champions.json      final standings 2008-2025, plus the famous title margins
+data/lineups.json        every team's pairing 2008-2026, with mid-season changes
+data/circuits.json       32 circuits: facts, and outlines built from the geojson
+data/f1-circuits.geojson OpenStreetMap survey coordinates (MIT, see above)
+data/season-2026.json    the 2026 calendar and entry list; results land here
+manifest.webmanifest     name, icons, standalone display
+sw.js                    offline cache. Bump CACHE when you change an asset.
+icons/                   app icons, generated by build/icons.mjs
+build/                   map builder and the test suite
 ```
 
 ### Working on it
 
 ```bash
-npm install playwright        # only needed for the browser tests
-node build/test-data.mjs      # data invariants, and the two files agreeing with each other
-node build/test.mjs           # full flow in a real browser: every section, entry, every tab
-node build/maps.mjs           # rebuild the outlines from build/tracks.mjs
-node build/icons.mjs          # regenerate the app icons
+npm install playwright         # only needed for the browser tests
+node build/test-data.mjs       # data invariants, including the lap-length check
+node build/test.mjs            # full flow in a real browser: every section, entry, every tab
+node build/maps.mjs --report   # rebuild outlines from survey coordinates
+node build/icons.mjs           # regenerate the app icons
 ```
 
-`test.mjs` drives headless Chromium at iPhone dimensions and writes
-screenshots to `build/shots/`.
+`test.mjs` drives headless Chromium at phone dimensions and writes screenshots
+to `build/shots/`.
 
 **After changing `app.css`, `app.js` or anything in `data/`, bump `CACHE` in
 `sw.js`** — otherwise phones that already installed the app keep serving the
 cached copy.
 
-This is a personal study tool and is not affiliated with Formula 1.
+Circuit geometry © OpenStreetMap contributors, via
+[bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT).
+Not affiliated with Formula 1.
