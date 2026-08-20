@@ -124,7 +124,21 @@ one line in `data/`, and it flows straight through to the questions;
 Some seasons carry more detail than others: standings 2008–2024 include points,
 2025 is order only.
 
-## Running it
+## Open it
+
+**<https://charles-byte.github.io/Apex-F1/>**
+
+On the iPhone, open that in **Safari** — iOS only offers the install from
+Safari, not Chrome — then **Share → Add to Home Screen**. It opens full-screen
+with no browser chrome, and works with no signal: the service worker caches the
+shell, the circuit outlines and every question, and your results live in that
+phone's storage.
+
+Every push to `main` redeploys it. `.github/workflows/pages.yml` runs the data
+checks first, so a circuit outline that no longer matches its published lap
+length never reaches the phone.
+
+### Running it locally
 
 Any static file server. The app fetches the files in `data/`, so opening
 `index.html` off the filesystem will not work.
@@ -133,10 +147,8 @@ Any static file server. The app fetches the files in `data/`, so opening
 python3 -m http.server 8000
 ```
 
-For the home-screen install and offline mode you need **HTTPS from a real
-domain** — that is what makes the service worker work. Deploy to Cloudflare
-Pages, Netlify or Vercel with no build command and output directory `/`, then
-open it on the phone and **Add to Home Screen**.
+The service worker needs a secure context, which `127.0.0.1` counts as; over a
+LAN address it will not register.
 
 ## Layout
 
@@ -161,6 +173,7 @@ build/                   map builder and the test suite
 npm install playwright         # only needed for the browser tests
 node build/test-data.mjs       # data invariants, including the lap-length check
 node build/test.mjs            # full flow in a real browser: every section, entry, every tab
+node build/test-subpath.mjs    # served under /Apex-F1/, then with the server killed
 node build/maps.mjs --report   # rebuild outlines from survey coordinates
 node build/icons.mjs           # regenerate the app icons
 ```
