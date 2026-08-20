@@ -1,16 +1,17 @@
 /* =====================================================================
    Apex — a memory trainer for Formula 1.
 
-   Four things it drills:
-     championships  final standings 2008-2025, champions, runners-up, margins
-     season         the 2026 races, entered round by round as they happen
-     circuits       every layout raced from 2020 onwards, in its latest form
-     grid           who drove for whom, 2008-2026
+   It runs on the race calendar, not on the clock. There is no daily
+   streak to keep and nothing goes stale overnight.
 
-   Every question has a stable key, and every key carries its own Leitner
-   box. Miss one and it comes back tomorrow; get it right repeatedly and
-   it drifts out to a month. A session pulls what is due first, then what
-   has never been asked, then the weakest of the rest.
+   The loop is one check per Grand Prix. After a race you enter the result;
+   before the next one you sit a short test on the race just gone — plus
+   whatever you missed at an earlier check, plus a couple of questions on
+   the circuit you are about to watch. Miss something and it comes back
+   before the next race, not tomorrow.
+
+   Recall is current season only. The championships, circuits and grids
+   sit behind a Practice tab for when you feel like it, and never nag.
 
    Nothing leaves the device. State lives in localStorage and can be
    exported as JSON from Settings.
@@ -18,19 +19,20 @@
 (function () {
   "use strict";
 
-  var KEY = "apex.f1.v1";
-  var BOXES = [0, 1, 3, 7, 16, 35];     // days until a key is due again
-  var SECTIONS = [
-    { id: "champs", name: "Championships", blurb: "Titles and final standings, 2008-2025" },
-    { id: "race",   name: "The 2026 season", blurb: "Finishing orders, poles and sprints" },
+  var KEY = "apex.f1.v2";
+  var SEASON = 2026;
+  /* The pre-race check is the point of the app. These three are for the
+     odd idle evening, and never nag. */
+  var PRACTICE = [
     { id: "track",  name: "Circuits",      blurb: "Maps and facts, every layout since 2020" },
+    { id: "champs", name: "Championships", blurb: "Titles and final standings, 2008-2025" },
     { id: "grid",   name: "Grids",         blurb: "Who drove for whom, 2008-2026" }
   ];
 
   var DATA = { champs: null, lineups: null, circuits: null, season: null };
   var CIRC = {};        // id -> circuit
   var state = null;
-  var view = "home";
+  var view = "race";
   var session = null;
   var sheet = null;
   var browseTrack = null;
@@ -79,7 +81,7 @@
     track: '<path d="M4 14c0-4 2-7 6-7s5 2 5 4-1 3-3 3-3-1-3-3 2-4 5-4c4 0 6 3 6 7s-3 5-8 5-8-1-8-5Z"/>',
     season: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
     record: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-    gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.6M12 18.8v2.6M4.4 12H1.8M22.2 12h-2.6M6.6 6.6 4.8 4.8M19.2 19.2l-1.8-1.8M17.4 6.6l1.8-1.8M4.8 19.2l1.8-1.8"/>',
+    gear: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/>',
     back: '<path d="M15 19l-7-7 7-7"/>',
     close: '<path d="M18 6L6 18M6 6l12 12"/>',
     tick: '<path d="M20 6L9 17l-5-5"/>',
@@ -120,19 +122,31 @@
   /* -------------------------------------------------------------- state */
   function freshState() {
     return {
-      v: 1,
+      v: 2,
       theme: "system",
-      sections: { champs: true, race: true, track: true, grid: true },
-      len: 12,
-      items: {},
+      results: {},      // "2026" -> round -> { quali, race, sprint }
+      checks: {},       // round -> { done, n, c, onTime }
+      carry: [],        // question keys you missed, re-asked at the next check
+      practice: {},     // key -> { n, c }
       log: [],
-      days: {},
-      results: {},
       created: todayISO()
     };
   }
   function load() {
-    try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) return s; } catch (e) {}
+    try {
+      var s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.v === 2) return s;
+    } catch (e) {}
+    /* the first version scheduled by the day; keep the results, drop the rest */
+    try {
+      var old = JSON.parse(localStorage.getItem("apex.f1.v1"));
+      if (old && old.results) {
+        var carried = freshState();
+        carried.results = old.results;
+        carried.theme = old.theme || "system";
+        return carried;
+      }
+    } catch (e) {}
     return freshState();
   }
   function save() {
@@ -140,36 +154,70 @@
     catch (e) { toast("Could not save — storage is full"); }
   }
 
-  /* ------------------------------------------------------ item scheduling */
-  function item(key) { return state.items[key] || null; }
-  function isDue(key) {
-    var it = state.items[key];
-    if (!it) return false;
-    return daysBetween(it.due, todayISO()) >= 0;
+  /* ---------------------------------------------------------- the season */
+  function rounds() { return DATA.season.rounds; }
+  function roundNo(n) {
+    return rounds().filter(function (r) { return r.round === +n; })[0] || null;
   }
-  function grade(key, section, ok) {
-    var it = state.items[key] || { n: 0, c: 0, box: 0, due: todayISO(), first: todayISO() };
-    it.n++;
-    if (ok) { it.c++; it.box = Math.min(BOXES.length - 1, it.box + 1); }
-    else { it.box = 0; }
-    it.due = addDays(todayISO(), BOXES[it.box]);
-    it.last = todayISO();
-    state.items[key] = it;
+  /* The next race on the calendar — the thing you are getting ready for. */
+  function nextRace() {
+    var t = todayISO();
+    return rounds().filter(function (r) { return r.date >= t; })[0] || null;
+  }
+  /* The last race that has actually been run, by the calendar. */
+  function lastRun() {
+    var t = todayISO();
+    var past = rounds().filter(function (r) { return r.date < t; });
+    return past.length ? past[past.length - 1] : null;
+  }
+  function checkFor(n) { return state.checks[String(n)] || null; }
+  /* The last round you have entered a result for. */
+  function lastRaced() {
+    var done = racedRounds();
+    return done.length ? done[done.length - 1] : null;
+  }
 
-    var d = todayISO();
-    var day = state.days[d] || { n: 0, c: 0 };
-    day.n++; if (ok) day.c++;
-    state.days[d] = day;
+  /* The check you owe: the most recent round you have results for and have
+     not been through yet. Usually the last race; if you skipped one, it is
+     the one you skipped, so nothing quietly disappears. */
+  function pendingRound() {
+    var done = racedRounds();
+    for (var i = done.length - 1; i >= 0; i--) {
+      if (!checkFor(done[i].round)) return done[i];
+    }
+    return null;
+  }
+  /* A check counts as on time if you did it before the next race started. */
+  function onTimeFor(n) {
+    var nxt = roundNo(+n + 1);
+    return !nxt || todayISO() < nxt.date;
+  }
+  /* Consecutive races checked before the next one got going. */
+  function raceStreak() {
+    var done = racedRounds(), n = 0;
+    for (var i = done.length - 1; i >= 0; i--) {
+      var c = checkFor(done[i].round);
+      if (c && c.onTime) n++; else break;
+    }
+    return n;
+  }
+  function checkedRounds() {
+    return Object.keys(state.checks).map(Number).sort(function (a, b) { return a - b; });
+  }
 
-    state.log.push({ t: Date.now(), k: key, s: section, ok: !!ok });
+  /* ---------------------------------------------------------------- score */
+  function grade(key, ok) {
+    var p = state.practice[key] || { n: 0, c: 0 };
+    p.n++; if (ok) p.c++;
+    state.practice[key] = p;
+    state.log.push({ t: Date.now(), k: key, s: key.split(":")[0], ok: !!ok,
+      m: session ? session.mode : "practice" });
     if (state.log.length > 3000) state.log = state.log.slice(-2000);
     save();
   }
-  function streak() {
-    var n = 0, d = todayISO();
-    if (!state.days[d] || !state.days[d].n) d = addDays(d, -1);
-    while (state.days[d] && state.days[d].n) { n++; d = addDays(d, -1); }
-    return n;
+  function accuracyOf(key) {
+    var p = state.practice[key];
+    return p && p.n ? p.c / p.n : 1;
   }
   function sectionStats(id) {
     var n = 0, c = 0;
@@ -181,13 +229,6 @@
     state.log.forEach(function (e) { if (e.ok) c++; });
     return { n: n, c: c, pct: pct(c, n) };
   }
-  function dueCount() {
-    var n = 0;
-    Object.keys(state.items).forEach(function (k) { if (isDue(k) && enabledFor(k)) n++; });
-    return n;
-  }
-  function sectionOf(key) { return String(key).split(":")[0]; }
-  function enabledFor(key) { return !!state.sections[sectionOf(key)]; }
 
   /* --------------------------------------------------------------- 2026 */
   function results2026() { return (state.results["2026"] = state.results["2026"] || {}); }
@@ -878,80 +919,142 @@
 
   /* ==================================================================
      Sessions
+
+     Two shapes, and neither of them is a daily habit:
+
+       check     the one that matters. Before the next race, a short test
+                 on the race just gone — plus anything you missed at an
+                 earlier check, plus a look at the circuit coming up.
+       practice  open drilling of the circuits, championships and grids,
+                 for when you feel like it. Weakest questions first.
      ================================================================== */
-  function candidates(only) {
-    return bank().filter(function (q) {
-      var sec = q.key.split(":")[0];
-      if (only) return sec === only;
-      return !!state.sections[sec];
+
+  var CHECK_RECALL = 6;    // questions about the race just gone
+  var CHECK_CARRY = 3;     // misses brought forward from earlier checks
+  var CHECK_AHEAD = 2;     // the circuit you are about to watch
+
+  function tagged(list, tag) {
+    return list.map(function (entry) { return { entry: entry, tag: tag }; });
+  }
+
+  /* The pre-race check for one round. */
+  function checkQueue(rd) {
+    var all = bank();
+    var prefix = "race:" + SEASON + ":" + rd.round + ":";
+    var recall = shuffle(all.filter(function (q) { return q.key.indexOf(prefix) === 0; }));
+
+    var carried = all.filter(function (q) { return state.carry.indexOf(q.key) >= 0; });
+    var ahead = [];
+    var nxt = nextRace();
+    if (nxt) {
+      var tp = "track:" + nxt.circuit + ":";
+      ahead = shuffle(all.filter(function (q) {
+        return q.key.indexOf(tp) === 0 && q.key.indexOf(":pick") < 0;
+      })).slice(0, CHECK_AHEAD);
+    }
+    var picture = all.filter(function (q) {
+      return q.key === "race:" + SEASON + ":leader" || q.key === "race:" + SEASON + ":wins";
     });
+
+    var q = tagged(recall.slice(0, CHECK_RECALL), "The race just gone")
+      .concat(tagged(shuffle(carried).slice(0, CHECK_CARRY), "You missed this last time"))
+      .concat(tagged(ahead, nxt ? "Coming up: " + (CIRC[nxt.circuit] || {}).short : "Coming up"))
+      .concat(racedRounds().length >= 3 ? tagged(sample(picture, 1), "The championship") : []);
+    return q;
   }
-  function accuracyOf(key) {
-    var it = state.items[key];
-    return it && it.n ? it.c / it.n : 1;
-  }
-  function startSession(only) {
-    var pool = candidates(only);
-    if (!pool.length) { toast("Nothing to ask yet"); return; }
 
-    var due = shuffle(pool.filter(function (q) { return isDue(q.key); }));
-    var fresh = shuffle(pool.filter(function (q) { return !state.items[q.key]; }));
-    var rest = pool.filter(function (q) { return state.items[q.key] && !isDue(q.key); })
-      .sort(function (a, b) { return accuracyOf(a.key) - accuracyOf(b.key); });
-
-    var want = state.len;
-    var chosen = due.slice(0, Math.ceil(want * 0.6));
-    chosen = chosen.concat(fresh.slice(0, want - chosen.length));
-    if (chosen.length < want) chosen = chosen.concat(rest.slice(0, want - chosen.length));
-    if (chosen.length < want) chosen = chosen.concat(shuffle(pool).slice(0, want - chosen.length));
-
+  function startCheck(rd) {
+    var queue = checkQueue(rd);
+    if (!queue.length) { toast("Enter the result first"); return; }
     session = {
-      queue: shuffle(uniq(chosen)), i: 0, cur: null,
-      picked: null, revealed: false, built: [], ok: 0, n: 0, only: only || null
+      mode: "check", round: rd.round, rd: rd, queue: queue,
+      i: 0, cur: null, tag: null, picked: null, revealed: false,
+      ordered: [], ok: 0, n: 0, misses: [], hits: []
     };
     nextQuestion();
     view = "session";
     render();
   }
+
+  function startPractice(section) {
+    var pool = bank().filter(function (q) {
+      return section ? q.key.split(":")[0] === section : q.key.split(":")[0] !== "race";
+    });
+    if (!pool.length) { toast("Nothing to practise there yet"); return; }
+    var fresh = shuffle(pool.filter(function (q) { return !state.practice[q.key]; }));
+    var seen = pool.filter(function (q) { return state.practice[q.key]; })
+      .sort(function (a, b) { return accuracyOf(a.key) - accuracyOf(b.key); });
+    var want = 10;
+    var chosen = seen.slice(0, Math.ceil(want / 2)).concat(fresh.slice(0, want));
+    session = {
+      mode: "practice", section: section || null,
+      queue: tagged(shuffle(uniq(chosen)).slice(0, want), null),
+      i: 0, cur: null, tag: null, picked: null, revealed: false,
+      ordered: [], ok: 0, n: 0, misses: [], hits: []
+    };
+    nextQuestion();
+    view = "session";
+    render();
+  }
+
   function nextQuestion() {
     session.picked = null; session.revealed = false; session.ordered = [];
     while (session.i < session.queue.length) {
-      var q = session.queue[session.i];
+      var slot = session.queue[session.i];
       var built = null;
-      try { built = q.make(); } catch (e) { built = null; }
-      if (built && built.options && built.options.length >= 2) { session.cur = built; return; }
+      try { built = slot.entry.make(); } catch (e) { built = null; }
+      if (built && built.options && built.options.length >= 2) {
+        session.cur = built; session.tag = slot.tag; return;
+      }
       session.i++;    // a generator with nothing to say today
     }
     session.cur = null;
+  }
+
+  function record(ok) {
+    session.n++;
+    if (ok) { session.ok++; session.hits.push(session.cur.key); }
+    else session.misses.push(session.cur.key);
+    grade(session.cur.key, ok);
   }
   function answerMcq(id) {
     if (session.revealed) return;
     session.picked = id;
     session.revealed = true;
-    var ok = id === session.cur.answer;
-    if (ok) session.ok++;
-    session.n++;
-    grade(session.cur.key, session.cur.section, ok);
+    record(id === session.cur.answer);
     render();
   }
   function checkOrder() {
     if (session.revealed) return;
     var a = session.cur.answer;
     if (session.ordered.length < a.length) return;
-    var ok = a.every(function (x, i) { return session.ordered[i] === x; });
     session.revealed = true;
-    if (ok) session.ok++;
-    session.n++;
-    grade(session.cur.key, session.cur.section, ok);
+    record(a.every(function (x, i) { return session.ordered[i] === x; }));
     render();
   }
   function advance() {
     session.i++;
     nextQuestion();
-    if (!session.cur) { view = "done"; }
+    if (!session.cur) finishSession();
     render();
   }
-  function quitSession() { session = null; view = "home"; render(); }
+
+  function finishSession() {
+    if (session.mode === "check") {
+      state.checks[String(session.round)] = {
+        done: todayISO(), n: session.n, c: session.ok, onTime: onTimeFor(session.round)
+      };
+      /* What you got right leaves the carry list; what you missed joins it,
+         and comes back before the next race rather than tomorrow. */
+      state.carry = state.carry.filter(function (k) { return session.hits.indexOf(k) < 0; });
+      session.misses.forEach(function (k) {
+        if (state.carry.indexOf(k) < 0) state.carry.push(k);
+      });
+      save();
+    }
+    view = "done";
+  }
+  function quitSession() { session = null; view = "race"; render(); }
 
   /* ==================================================================
      Pieces
@@ -985,75 +1088,121 @@
   /* ==================================================================
      Views
      ================================================================== */
-  function viewHome() {
-    var t = totals(), due = dueCount(), st = streak();
+
+  function countdown(rd) {
+    if (!rd) return "Season over";
+    var d = daysBetween(todayISO(), rd.date);
+    if (d < 0) return "Under way";
+    if (d === 0) return "Race day";
+    if (d === 1) return "Tomorrow";
+    if (d <= 3) return "This weekend";
+    if (d <= 7) return "In " + d + " days";
+    return niceDate(rd.date);
+  }
+
+  function viewRace() {
     var wrap = el("div", { class: "wrap" });
+    var nxt = nextRace();
+    var pending = pendingRound();
+    var past = lastRun();
 
     wrap.appendChild(el("div", { class: "top" }, [
       el("div", {}, [
         el("p", { class: "kicker", text: "Apex" }),
-        el("h1", { class: "title", text: greeting() })
+        el("h1", { class: "title", text: nxt ? "Round " + nxt.round : "Season over" })
       ]),
       el("button", { class: "btn sm ghost", "aria-label": "Settings", html: icon(ICON.gear), onclick: settingsSheet })
     ]));
 
-    var hero = el("div", { class: "hero" }, [
-      el("h2", { text: due ? plural(due, "question") + " due" : "Free run" }),
-      el("p", { text: due
-        ? "Everything you have missed or nearly forgotten, plus new ground."
-        : "Nothing is due. A session will bring you new questions and shore up the weakest ones." }),
-      el("button", { class: "btn primary wide", text: "Start a session", onclick: function () { startSession(null); } })
-    ]);
-    wrap.appendChild(hero);
+    /* what you are getting ready for */
+    if (nxt) {
+      var c = CIRC[nxt.circuit] || {};
+      wrap.appendChild(el("div", { class: "nextrace" }, [
+        el("div", { class: "nextrace-map" }, [mapNode(nxt.circuit)]),
+        el("div", { class: "grow" }, [
+          el("p", { class: "tag", text: countdown(nxt) }),
+          el("h2", { text: c.short || nxt.gp }),
+          el("p", { class: "muted small", text: nxt.gp + (nxt.sprint ? " · sprint weekend" : "") })
+        ])
+      ]));
+    }
 
-    wrap.appendChild(el("div", { class: "tiles" }, [
-      el("div", { class: "tile" }, [el("b", { text: String(st) }), el("span", { text: st === 1 ? "day streak" : "day streak" })]),
-      el("div", { class: "tile" }, [el("b", { text: t.n ? t.pct + "%" : "—" }), el("span", { text: "all-time" })]),
-      el("div", { class: "tile" }, [el("b", { text: String(t.n) }), el("span", { text: "answered" })])
+    /* the check */
+    if (pending) {
+      var pc = CIRC[pending.circuit] || {};
+      wrap.appendChild(el("div", { class: "hero" }, [
+        el("p", { class: "kicker", text: "Before you watch" }),
+        el("h2", { text: "Do you still have " + (pc.short || pending.gp) + "?" }),
+        el("p", { text: "A short test on round " + pending.round + " — the order, the pole, who went backwards — " +
+          "and a look at what is coming up." }),
+        el("button", { class: "btn primary wide", text: "Start the check",
+          onclick: function () { startCheck(pending); } })
+      ]));
+    } else if (past && !roundResult(past.round)) {
+      wrap.appendChild(el("div", { class: "hero" }, [
+        el("p", { class: "kicker", text: "Round " + past.round + " has been run" }),
+        el("h2", { text: "Enter the " + (CIRC[past.circuit] || {}).short + " result" }),
+        el("p", { text: "The finishing order is what the next check is built from. The podium is enough." }),
+        el("button", { class: "btn primary wide", text: "Enter the result",
+          onclick: function () { view = "season"; render(); roundSheet(past); } })
+      ]));
+    } else {
+      var lastDone = lastRaced();
+      var chk = lastDone ? checkFor(lastDone.round) : null;
+      wrap.appendChild(el("div", { class: "hero" }, [
+        el("p", { class: "kicker", text: chk ? "Round " + lastDone.round + " checked" : "Nothing to check yet" }),
+        el("h2", { text: chk ? chk.c + " of " + chk.n + " right" : "Waiting on a race" }),
+        el("p", { text: chk
+          ? "You are square with the season. The next check opens when you enter the " +
+            (nxt ? (CIRC[nxt.circuit] || {}).short : "next") + " result."
+          : "Enter a race result on the Season tab and the check opens here." }),
+        chk ? el("button", { class: "btn wide", text: "Take it again",
+          onclick: function () { startCheck(lastDone); } })
+          : el("button", { class: "btn wide", text: "Go to the season",
+            onclick: function () { view = "season"; render(); } })
+      ]));
+    }
+
+    /* the season so far, one cell a round */
+    wrap.appendChild(el("p", { class: "kicker", style: "margin:20px 0 8px", text: "The season" }));
+    var strip = el("div", { class: "strip" });
+    rounds().forEach(function (rd) {
+      var chk = checkFor(rd.round);
+      var cls = "cell";
+      if (chk) cls += pct(chk.c, chk.n) >= 70 ? " good" : " part";
+      else if (roundResult(rd.round)) cls += " open";
+      else if (nxt && rd.round === nxt.round) cls += " next";
+      strip.appendChild(el("button", {
+        class: cls, title: (CIRC[rd.circuit] || {}).short,
+        onclick: function () { view = "season"; render(); roundSheet(rd); }
+      }, [el("span", { text: String(rd.round) })]));
+    });
+    wrap.appendChild(strip);
+
+    var checked = checkedRounds().length;
+    wrap.appendChild(el("div", { class: "tiles", style: "margin-top:12px" }, [
+      el("div", { class: "tile" }, [el("b", { text: String(raceStreak()) }), el("span", { text: "races in a row" })]),
+      el("div", { class: "tile" }, [el("b", { text: String(checked) }), el("span", { text: "checked" })]),
+      el("div", { class: "tile" }, [el("b", { text: String(state.carry.length) }), el("span", { text: "still owing" })])
     ]));
 
-    wrap.appendChild(el("p", { class: "kicker", style: "margin:22px 0 8px", text: "Sections" }));
+    /* practice, deliberately quiet and down the page */
+    wrap.appendChild(el("p", { class: "kicker", style: "margin:22px 0 8px", text: "Practice, if you feel like it" }));
     var grid = el("div", { class: "secgrid" });
-    SECTIONS.forEach(function (s) {
-      var on = !!state.sections[s.id];
+    PRACTICE.forEach(function (s) {
       var stat = sectionStats(s.id);
-      var n = candidates(s.id).length;
-      var card = el("button", {
-        class: "sec " + (on ? "on" : "off"),
-        onclick: function () { if (n) startSession(s.id); else toast(emptyWhy(s.id)); },
-        oncontextmenu: function (e) { e.preventDefault(); toggleSection(s.id); }
+      grid.appendChild(el("button", {
+        class: "sec", onclick: function () { startPractice(s.id); }
       }, [
         el("b", { text: s.name }),
-        el("span", { text: n ? plural(n, "question") + (stat.n ? " · " + stat.pct + "%" : "") : emptyWhy(s.id) }),
+        el("span", { text: s.blurb }),
         el("div", { class: "meter", style: "margin-top:10px" }, [
           el("i", { class: stat.pct >= 80 ? "good" : "", style: "width:" + Math.max(2, stat.pct) + "%" })
         ])
-      ]);
-      grid.appendChild(card);
+      ]));
     });
     wrap.appendChild(grid);
-    wrap.appendChild(el("p", { class: "small muted center", style: "margin-top:12px",
-      text: "Tap a section to drill it on its own. Long-press to switch it off in mixed sessions." }));
-
     return wrap;
-  }
-  function emptyWhy(id) {
-    if (id === "race") return "Enter a race result first";
-    return "Nothing yet";
-  }
-  function toggleSection(id) {
-    var on = Object.keys(state.sections).filter(function (k) { return state.sections[k]; });
-    if (on.length === 1 && state.sections[id]) { toast("Keep at least one section on"); return; }
-    state.sections[id] = !state.sections[id];
-    save(); render();
-    toast(state.sections[id] ? SECTIONS.filter(function (s) { return s.id === id; })[0].name + " on" : "off");
-  }
-  function greeting() {
-    var h = new Date().getHours();
-    if (h < 5) return "Night shift";
-    if (h < 12) return "Morning";
-    if (h < 18) return "Afternoon";
-    return "Evening";
   }
 
   /* ------------------------------------------------------------ session */
@@ -1067,6 +1216,8 @@
       el("div", { class: "progress" }, [el("i", { style: "width:" + Math.round(100 * session.i / total) + "%" })]),
       el("span", { class: "tag", text: (session.i + 1) + " / " + total })
     ]));
+
+    if (session.tag) wrap.appendChild(el("p", { class: "qtag", text: session.tag }));
 
     if (q.mapId && !q.maps) wrap.appendChild(mapNode(q.mapId, "lg"));
 
@@ -1172,35 +1323,50 @@
   function viewDone() {
     var wrap = el("div", { class: "wrap" });
     var p = pct(session.ok, session.n);
+    var isCheck = session.mode === "check";
+    var rd = isCheck ? session.rd : null;
+    var c = rd ? (CIRC[rd.circuit] || {}) : null;
+    var nxt = nextRace();
+
     wrap.appendChild(el("div", { class: "top" }, [el("div", {}, [
-      el("p", { class: "kicker", text: "Session" }),
-      el("h1", { class: "title", text: p >= 80 ? "Clean lap" : p >= 50 ? "Points finish" : "Off at turn one" })
+      el("p", { class: "kicker", text: isCheck ? "Round " + rd.round + " checked" : "Practice" }),
+      el("h1", { class: "title", text: p >= 80 ? "You still have it" : p >= 50 ? "Patchy" : "That has gone" })
     ])]));
 
     wrap.appendChild(el("div", { class: "hero" }, [
       el("h2", { text: session.ok + " of " + session.n + " right" }),
-      el("p", { text: p >= 80 ? "Those go to the back of the queue for a while."
-        : "The ones you missed come back tomorrow." }),
+      el("p", { text: isCheck
+        ? (session.misses.length
+          ? "What you missed comes back before " + (nxt ? (CIRC[nxt.circuit] || {}).short : "the next race") + "."
+          : "Nothing carried forward. Enjoy the race.")
+        : "Practice does not carry anything forward — it is just reps." }),
       meter(p, p >= 80 ? "good" : "")
     ]));
 
-    var byKey = {};
-    state.log.slice(-session.n).forEach(function (e) { byKey[e.k] = e.ok; });
-    var missed = Object.keys(byKey).filter(function (k) { return !byKey[k]; });
-    if (missed.length) {
-      wrap.appendChild(el("p", { class: "kicker", style: "margin:18px 0 6px", text: "Coming back tomorrow" }));
+    if (session.misses.length) {
+      wrap.appendChild(el("p", { class: "kicker", style: "margin:18px 0 6px",
+        text: isCheck ? "Coming back before the next race" : "Worth another look" }));
       var card = el("div", { class: "card" });
       var list = el("div", { class: "list" });
-      missed.forEach(function (k) { list.appendChild(el("div", { class: "li" }, [el("b", { text: keyLabel(k) })])); });
+      session.misses.forEach(function (k) {
+        list.appendChild(el("div", { class: "li" }, [el("b", { text: keyLabel(k) })]));
+      });
       card.appendChild(list);
       wrap.appendChild(card);
     }
 
-    wrap.appendChild(el("div", { class: "stack", style: "margin-top:14px" }, [
-      el("button", { class: "btn primary wide", text: "Another session",
-        onclick: function () { startSession(session.only); } }),
-      el("button", { class: "btn wide ghost", text: "Done", onclick: quitSession })
+    var actions = [];
+    if (isCheck && nxt) actions.push(el("div", { class: "card tight row", style: "gap:12px" }, [
+      el("div", { style: "width:52px;flex:none" }, [mapNode(nxt.circuit)]),
+      el("div", { class: "grow" }, [
+        el("p", { class: "tag", text: countdown(nxt) }),
+        el("b", { text: (CIRC[nxt.circuit] || {}).short })
+      ])
     ]));
+    actions.push(el("button", { class: "btn primary wide", text: "Done", onclick: quitSession }));
+    if (!isCheck) actions.push(el("button", { class: "btn wide ghost", text: "Another ten",
+      onclick: function () { startPractice(session.section); } }));
+    wrap.appendChild(el("div", { class: "stack", style: "margin-top:14px" }, actions));
     return wrap;
   }
 
@@ -1251,7 +1417,7 @@
         el("p", { class: "kicker", text: "Circuits" }),
         el("h1", { class: "title", text: "The maps" })
       ]),
-      el("button", { class: "btn sm", text: "Drill", onclick: function () { startSession("track"); } })
+      el("button", { class: "btn sm", text: "Practise", onclick: function () { startPractice("track"); } })
     ]));
 
     var filters = [
@@ -1275,9 +1441,9 @@
 
     var grid = el("div", { class: "trackgrid" });
     list.forEach(function (c) {
-      var it = state.items["track:" + c.id + ":map"];
+      var it = state.practice["track:" + c.id + ":map"];
       grid.appendChild(el("button", {
-        class: "trackcard" + (it && it.box >= 3 ? " seen" : ""),
+        class: "trackcard" + (it && it.n >= 2 && it.c / it.n >= 0.8 ? " seen" : ""),
         onclick: function () { trackSheet(c); }
       }, [
         mapNode(c.id),
@@ -1325,7 +1491,8 @@
         el("p", { class: "kicker", text: "Season 2026" }),
         el("h1", { class: "title", text: plural(done.length, "round") + " in" })
       ]),
-      done.length ? el("button", { class: "btn sm", text: "Drill", onclick: function () { startSession("race"); } }) : null
+      pendingRound() ? el("button", { class: "btn sm", text: "Check",
+        onclick: function () { startCheck(pendingRound()); } }) : null
     ]));
 
     if (!done.length) {
@@ -1487,89 +1654,88 @@
   /* ------------------------------------------------------------- record */
   function viewRecord() {
     var wrap = el("div", { class: "wrap" });
+    var checked = checkedRounds();
     var t = totals();
+
+    var scored = checked.map(function (n) { return checkFor(n); });
+    var totalN = scored.reduce(function (a, c) { return a + c.n; }, 0);
+    var totalC = scored.reduce(function (a, c) { return a + c.c; }, 0);
+
     wrap.appendChild(el("div", { class: "top" }, [
       el("div", {}, [
         el("p", { class: "kicker", text: "Record" }),
-        el("h1", { class: "title", text: t.n ? t.pct + "% right" : "No laps yet" })
+        el("h1", { class: "title", text: checked.length ? pct(totalC, totalN) + "% recalled" : "No checks yet" })
       ]),
       el("button", { class: "btn sm ghost", html: icon(ICON.gear), "aria-label": "Settings", onclick: settingsSheet })
     ]));
 
-    if (!t.n) {
+    if (!checked.length) {
       wrap.appendChild(el("div", { class: "empty" }, [
         el("b", { text: "Nothing recorded" }),
-        el("span", { text: "Run a session and this fills up: accuracy by section, what is due, and what keeps catching you out." })
+        el("span", { text: "Enter a race result, sit the check before the next race, and this fills up: " +
+          "what you recalled race by race, and what keeps slipping." })
       ]));
       return wrap;
     }
 
     wrap.appendChild(el("div", { class: "tiles" }, [
-      el("div", { class: "tile" }, [el("b", { text: String(t.n) }), el("span", { text: "answered" })]),
-      el("div", { class: "tile" }, [el("b", { text: String(streak()) }), el("span", { text: "day streak" })]),
-      el("div", { class: "tile" }, [el("b", { text: String(dueCount()) }), el("span", { text: "due now" })])
+      el("div", { class: "tile" }, [el("b", { text: String(checked.length) }), el("span", { text: "races checked" })]),
+      el("div", { class: "tile" }, [el("b", { text: String(raceStreak()) }), el("span", { text: "in a row" })]),
+      el("div", { class: "tile" }, [el("b", { text: String(state.carry.length) }), el("span", { text: "still owing" })])
     ]));
 
-    /* last 30 days */
-    var heat = el("div", { class: "heat" });
-    var maxN = 1;
-    for (var i = 29; i >= 0; i--) { var d = state.days[addDays(todayISO(), -i)]; if (d && d.n > maxN) maxN = d.n; }
-    for (var j = 29; j >= 0; j--) {
-      var iso = addDays(todayISO(), -j), day = state.days[iso];
-      var lvl = !day || !day.n ? "" : "l" + Math.min(4, Math.ceil(4 * day.n / maxN));
-      heat.appendChild(el("i", { class: lvl, title: iso + (day ? " — " + day.c + "/" + day.n : "") }));
-    }
-    wrap.appendChild(el("div", { class: "card" }, [
-      el("p", { class: "kicker", style: "margin-bottom:10px", text: "Last thirty days" }), heat
-    ]));
-
-    /* by section */
-    var card = el("div", { class: "card" }, [el("p", { class: "kicker", style: "margin-bottom:4px", text: "By section" })]);
-    SECTIONS.forEach(function (s) {
-      var st = sectionStats(s.id);
-      card.appendChild(el("div", { class: "barrow" }, [
-        el("span", { class: "lab", text: s.name }),
-        el("div", { class: "meter grow" }, [
-          el("i", { class: st.pct >= 80 ? "good" : "", style: "width:" + Math.max(2, st.pct) + "%" })
+    /* race by race */
+    var card = el("div", { class: "card" }, [
+      el("p", { class: "kicker", style: "margin-bottom:4px", text: "Race by race" })
+    ]);
+    var list = el("div", { class: "list" });
+    checked.slice().reverse().forEach(function (n) {
+      var rd = roundNo(n), chk = checkFor(n), c = CIRC[rd.circuit] || {};
+      var p = pct(chk.c, chk.n);
+      list.appendChild(el("div", { class: "li" }, [
+        el("span", { class: "num", text: String(n) }),
+        el("div", { style: "width:34px;flex:none" }, [mapNode(rd.circuit)]),
+        el("div", { class: "grow" }, [
+          el("b", { text: c.short || rd.gp }),
+          el("div", { class: "small muted", text: chk.onTime ? "before the next race" : "after the next race started" })
         ]),
-        el("span", { class: "val", text: st.n ? st.c + "/" + st.n : "—" })
+        el("span", { class: "chip " + (p >= 70 ? "good" : p >= 40 ? "" : "bad"), text: chk.c + "/" + chk.n })
       ]));
     });
+    card.appendChild(list);
     wrap.appendChild(card);
 
-    /* mastery */
-    var boxes = [0, 0, 0];
-    Object.keys(state.items).forEach(function (k) {
-      var b = state.items[k].box;
-      boxes[b >= 4 ? 2 : b >= 2 ? 1 : 0]++;
-    });
-    var totalKeys = bank().length;
-    wrap.appendChild(el("div", { class: "card" }, [
-      el("p", { class: "kicker", style: "margin-bottom:10px", text: "Where the bank stands" }),
-      el("div", { class: "tiles" }, [
-        el("div", { class: "tile" }, [el("b", { text: String(boxes[2]) }), el("span", { text: "solid" })]),
-        el("div", { class: "tile" }, [el("b", { text: String(boxes[1]) }), el("span", { text: "getting there" })]),
-        el("div", { class: "tile" }, [el("b", { text: String(totalKeys - boxes[1] - boxes[2]) }), el("span", { text: "shaky or new" })])
-      ])
-    ]));
+    /* what is still owed */
+    if (state.carry.length) {
+      var cc = el("div", { class: "card" }, [
+        el("p", { class: "kicker", style: "margin-bottom:4px", text: "Comes back at the next check" })
+      ]);
+      var cl = el("div", { class: "list" });
+      state.carry.slice(0, 10).forEach(function (k) {
+        cl.appendChild(el("div", { class: "li" }, [el("b", { text: keyLabel(k) })]));
+      });
+      cc.appendChild(cl);
+      if (state.carry.length > 10) cc.appendChild(el("p", { class: "small muted",
+        text: "and " + (state.carry.length - 10) + " more" }));
+      wrap.appendChild(cc);
+    }
 
-    /* weakest */
-    var weak = Object.keys(state.items)
-      .filter(function (k) { return state.items[k].n >= 2; })
-      .sort(function (a, b) { return accuracyOf(a) - accuracyOf(b) || state.items[b].n - state.items[a].n; })
-      .slice(0, 8);
-    if (weak.length) {
-      var wc = el("div", { class: "card" }, [el("p", { class: "kicker", style: "margin-bottom:4px", text: "Keeps catching you out" })]);
-      var list = el("div", { class: "list" });
-      weak.forEach(function (k) {
-        var it = state.items[k];
-        list.appendChild(el("div", { class: "li" }, [
-          el("b", { class: "grow", text: keyLabel(k) }),
-          el("span", { class: "right", text: it.c + "/" + it.n })
+    /* practice, kept separate from the record that matters */
+    if (t.n) {
+      var pc = el("div", { class: "card" }, [
+        el("p", { class: "kicker", style: "margin-bottom:4px", text: "Practice" })
+      ]);
+      PRACTICE.forEach(function (s) {
+        var st = sectionStats(s.id);
+        pc.appendChild(el("div", { class: "barrow" }, [
+          el("span", { class: "lab", text: s.name }),
+          el("div", { class: "meter grow" }, [
+            el("i", { class: st.pct >= 80 ? "good" : "", style: "width:" + Math.max(2, st.pct) + "%" })
+          ]),
+          el("span", { class: "val", text: st.n ? st.c + "/" + st.n : "—" })
         ]));
       });
-      wc.appendChild(list);
-      wrap.appendChild(wc);
+      wrap.appendChild(pc);
     }
 
     return wrap;
@@ -1591,29 +1757,6 @@
     });
     body.appendChild(seg);
 
-    body.appendChild(el("p", { class: "kicker", text: "Questions per session" }));
-    var lens = [8, 12, 20, 30];
-    var seg2 = el("div", { class: "seg", style: "margin:6px 0 18px" });
-    lens.forEach(function (n) {
-      seg2.appendChild(el("button", {
-        class: state.len === n ? "on" : "", text: String(n),
-        onclick: function () { state.len = n; save(); settingsSheet(); }
-      }));
-    });
-    body.appendChild(seg2);
-
-    body.appendChild(el("p", { class: "kicker", style: "margin-bottom:2px", text: "In mixed sessions" }));
-    SECTIONS.forEach(function (s) {
-      var on = !!state.sections[s.id];
-      body.appendChild(el("div", { class: "toggle", onclick: function () { toggleSection(s.id); settingsSheet(); } }, [
-        el("div", { class: "grow" }, [
-          el("b", { text: s.name }),
-          el("div", { class: "small muted", text: s.blurb })
-        ]),
-        el("div", { class: "switch" + (on ? " on" : "") }, [el("i", {})])
-      ]));
-    });
-
     body.appendChild(el("div", { class: "stack", style: "margin-top:20px" }, [
       el("button", { class: "btn wide", text: "Export everything", onclick: function () { exportSheet("all"); } }),
       el("button", { class: "btn wide", text: "Export the 2026 results", onclick: function () { exportSheet("results"); } }),
@@ -1622,9 +1765,9 @@
     ]));
 
     body.appendChild(el("p", { class: "small muted", style: "margin-top:18px", text:
-      "Everything is stored on this device only. The championship, circuit and grid data " +
-      "was written by hand rather than pulled from a timing feed — if you find something wrong, " +
-      "correct it in data/ and it flows straight through to the questions." }));
+      "Apex runs on the race calendar. There is no daily streak, nothing expires overnight, " +
+      "and a check only opens once you have entered a result. Everything is stored on this " +
+      "device only." }));
 
     body.appendChild(el("button", { class: "btn wide", style: "margin-top:14px", text: "Close", onclick: closeSheet }));
     openSheet(body);
@@ -1692,13 +1835,14 @@
       el("div", { class: "sheet-grip" }),
       el("h2", { class: "title", style: "font-size:20px;margin:0 0 6px", text: "Reset progress?" }),
       el("p", { class: "explain", style: "margin-bottom:16px",
-        text: "This clears every answer, streak and schedule. The 2026 results you entered are kept." }),
+        text: "This clears every check score and everything you owe. The race results you " +
+          "entered are kept, so the checks simply open again." }),
       el("div", { class: "stack" }, [
         el("button", { class: "btn wide", style: "color:var(--bad)", text: "Reset", onclick: function () {
           var keep = state.results;
           state = freshState();
           state.results = keep;
-          save(); rebuildBank(); closeSheet(); view = "home"; render();
+          save(); rebuildBank(); closeSheet(); view = "race"; render();
           toast("Reset");
         } }),
         el("button", { class: "btn wide ghost", text: "Keep it", onclick: settingsSheet })
@@ -1710,7 +1854,7 @@
   /* ---------------------------------------------------------------- nav */
   function nav() {
     var items = [
-      { id: "home", label: "Train", ic: ICON.train },
+      { id: "race", label: "Race", ic: ICON.flag },
       { id: "track", label: "Circuits", ic: ICON.track },
       { id: "season", label: "Season", ic: ICON.season },
       { id: "record", label: "Record", ic: ICON.record }
@@ -1743,7 +1887,7 @@
     else if (view === "track") body = viewTrack();
     else if (view === "season") body = viewSeason();
     else if (view === "record") body = viewRecord();
-    else { view = view === "session" || view === "done" ? "home" : view; body = viewHome(); }
+    else { view = "race"; body = viewRace(); }
 
     root.appendChild(body);
     if (view !== "session" && view !== "done") root.appendChild(nav());

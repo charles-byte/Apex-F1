@@ -1,18 +1,47 @@
 # Apex
 
-A memory trainer for Formula 1, built for the phone. Four things it drills:
+A memory trainer for Formula 1, built for the phone and paced by the race
+calendar.
+
+## The loop is one check per Grand Prix
+
+After a race you enter the result. Before the next one, the app asks whether
+you still have it — a short test, eight to eleven questions, in three parts:
+
+| | |
+|---|---|
+| **The race just gone** | Winner, podium order, pole, the front two rows, who finished where, the biggest mover, the sprint |
+| **You missed this last time** | Anything you got wrong at an earlier check. Misses come back **before the next race**, not tomorrow |
+| **Coming up** | The circuit you are about to watch — its map, its length, which way round it goes — plus where the championship stands |
+
+Recall is **current season only**. That is the whole point: it tests what you
+watched three weeks ago, not what you read about in 2013.
+
+A check opens when you enter a result and stays open until you take it. Sit it
+before the next race starts and it counts as on time; the streak is *races in a
+row*, and it only moves when a race does.
+
+## Practice, if you feel like it
+
+Three background sections sit under the check and never nag:
 
 | Section | What it asks |
 |---|---|
-| **Championships** | Drivers' and constructors' titles 2008–2025, runners-up, final top-five order, title margins, and "which season finished like this?" |
-| **The 2026 season** | Finishing orders, poles, front rows, sprint winners and biggest movers — from results you enter as each race happens |
 | **Circuits** | Every layout raced from 2020 onwards, plus Sepang: identify the map, pick the map, length, corners, direction, lap count, first Grand Prix, calendar position |
+| **Championships** | Drivers' and constructors' titles 2008–2025, runners-up, final top-five order, title margins, and "which season finished like this?" |
 | **Grids** | Who drove for whom, 2008–2026 — team-mates, seats, team counts, and identifying a season from three lineups |
 
-Around 900 questions before a single race is entered. It is a Progressive Web
-App: no install, no account, no build step, and it pulls **nothing** from the
-network — not even a font. Open it in a browser, add it to the home screen,
-and it runs full-screen and offline. Everything stays on that phone.
+Practice is just reps: ten questions, weakest first. It carries nothing
+forward and touches nothing in your race record.
+
+It runs on the race calendar, not the clock. There is no daily streak to keep
+and nothing goes stale overnight — you pick it up in the days before a Grand
+Prix and put it down again.
+
+It is a Progressive Web App: no install, no account, no build step, and it
+pulls **nothing** from the network, not even a font. Open it in a browser, add
+it to the home screen, and it runs full-screen and offline. Everything stays on
+that phone.
 
 ## The maps are real
 
@@ -48,32 +77,30 @@ The one casualty: the **Bahrain Outer Circuit**, used once for the 2020 Sakhir
 GP, has no survey geometry of its own, and drawing it by hand would be exactly
 the thing this section refuses to do. It is left out.
 
-## How the drilling works
+## Why there is no daily schedule
 
-Every question has a stable key, and every key carries its own Leitner box.
-Get one right and it moves out — **1 day, then 3, 7, 16, 35**. Miss it and it
-drops straight back to tomorrow, however well you knew it before.
+Nothing here is measured in days. A miss is not "due tomorrow", it is *owed at
+the next check* — it sits on a carry list until you get it right, however long
+that takes. Skip three weeks and you have missed nothing; the next race brings
+it all back.
 
-A session pulls **what is due first**, then **what has never been asked**, then
-the **weakest of everything else**. So the queue drains before it grows, and
-nothing you already know keeps coming back.
+If you skip a round entirely, its check is still the one you are offered next,
+so a race cannot quietly disappear.
 
 Distractors are re-drawn every time a question is asked, so you cannot learn
 "the answer is the third one". Ordering questions are all-or-nothing: one place
 out is a miss, and the right order is shown against yours.
 
-Tap a section to drill it alone. Long-press to drop it out of mixed sessions.
-
-## Entering the 2026 results
+## Entering the results
 
 The season file ships with the calendar and the entry list but no results —
-that is the part you keep up to date. **Season → a round → Add**, then tap
-drivers in order. Three deep is enough for podium and winner questions; go to
-ten if you want to be tested that far down. Qualifying and sprint are separate
-and optional.
+that is the part you keep up to date, and it is what opens the next check.
+**Season → a round → Add**, then tap drivers in order. Three deep is enough for
+podium and winner questions; go to ten if you want to be tested that far down.
+Qualifying and sprint are separate and optional.
 
-Everything you enter becomes questions in the next session, and the standings
-on the Season tab are computed from it, sprint points included.
+The standings on the Season tab are computed from whatever you have entered,
+sprint points included.
 
 To keep results with the repo rather than only on the phone,
 **Settings → Export the 2026 results** and paste the JSON into the `results`

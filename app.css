@@ -390,3 +390,31 @@ select, input[type="text"] {
 
 .empty { text-align: center; color: var(--dim); padding: 34px 18px; }
 .empty b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 6px; }
+
+/* ------------------------------------------------------- race weekend */
+.nextrace {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px;
+}
+.nextrace-map { width: 62px; flex: none; }
+.nextrace-map .mapbox { background: transparent; padding: 0; }
+.nextrace-map .map path { stroke-width: 40; }
+.nextrace h2 { margin: 1px 0 1px; font-size: 18px; letter-spacing: -.015em; }
+
+/* one cell per round, the whole season at a glance */
+.strip { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
+.strip .cell {
+  aspect-ratio: 1; border-radius: 7px; background: var(--surface2);
+  border: 1px solid var(--line); display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px; color: var(--dim2);
+}
+.strip .cell.open { border-color: var(--warn); color: var(--warn); }
+.strip .cell.next { border-color: var(--accent); color: var(--ink); }
+.strip .cell.part { background: color-mix(in srgb, var(--warn) 30%, var(--surface2)); color: var(--ink); border-color: transparent; }
+.strip .cell.good { background: var(--good); color: #04150C; border-color: transparent; font-weight: 700; }
+
+.qtag {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent); margin: 0 0 10px;
+}
