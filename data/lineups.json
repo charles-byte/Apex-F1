@@ -1,0 +1,294 @@
+{
+  "note": "Race-seat lineups by season. `drivers` is the pair that started the season; `changes` records mid-season swaps and stand-ins.",
+  "seasons": [
+    { "year": 2008, "teams": [
+      { "team": "Ferrari", "drivers": ["Kimi Raikkonen", "Felipe Massa"] },
+      { "team": "McLaren", "drivers": ["Lewis Hamilton", "Heikki Kovalainen"] },
+      { "team": "BMW Sauber", "drivers": ["Nick Heidfeld", "Robert Kubica"] },
+      { "team": "Renault", "drivers": ["Fernando Alonso", "Nelson Piquet Jr"] },
+      { "team": "Toyota", "drivers": ["Jarno Trulli", "Timo Glock"] },
+      { "team": "Toro Rosso", "drivers": ["Sebastien Bourdais", "Sebastian Vettel"] },
+      { "team": "Red Bull", "drivers": ["David Coulthard", "Mark Webber"] },
+      { "team": "Williams", "drivers": ["Nico Rosberg", "Kazuki Nakajima"] },
+      { "team": "Honda", "drivers": ["Jenson Button", "Rubens Barrichello"] },
+      { "team": "Force India", "drivers": ["Giancarlo Fisichella", "Adrian Sutil"] },
+      { "team": "Super Aguri", "drivers": ["Takuma Sato", "Anthony Davidson"] }
+    ], "changes": ["Super Aguri withdrew after four races."] },
+
+    { "year": 2009, "teams": [
+      { "team": "Brawn", "drivers": ["Jenson Button", "Rubens Barrichello"] },
+      { "team": "Red Bull", "drivers": ["Sebastian Vettel", "Mark Webber"] },
+      { "team": "McLaren", "drivers": ["Lewis Hamilton", "Heikki Kovalainen"] },
+      { "team": "Ferrari", "drivers": ["Kimi Raikkonen", "Felipe Massa"] },
+      { "team": "Toyota", "drivers": ["Jarno Trulli", "Timo Glock"] },
+      { "team": "BMW Sauber", "drivers": ["Nick Heidfeld", "Robert Kubica"] },
+      { "team": "Williams", "drivers": ["Nico Rosberg", "Kazuki Nakajima"] },
+      { "team": "Renault", "drivers": ["Fernando Alonso", "Nelson Piquet Jr"] },
+      { "team": "Force India", "drivers": ["Adrian Sutil", "Giancarlo Fisichella"] },
+      { "team": "Toro Rosso", "drivers": ["Sebastien Bourdais", "Sebastien Buemi"] }
+    ], "changes": [
+      "Massa was injured at the Hungaroring; Luca Badoer then Giancarlo Fisichella finished the year at Ferrari.",
+      "Romain Grosjean replaced Piquet Jr at Renault.",
+      "Jaime Alguersuari replaced Bourdais at Toro Rosso."
+    ] },
+
+    { "year": 2010, "teams": [
+      { "team": "Red Bull", "drivers": ["Sebastian Vettel", "Mark Webber"] },
+      { "team": "McLaren", "drivers": ["Lewis Hamilton", "Jenson Button"] },
+      { "team": "Ferrari", "drivers": ["Fernando Alonso", "Felipe Massa"] },
+      { "team": "Mercedes", "drivers": ["Michael Schumacher", "Nico Rosberg"] },
+      { "team": "Renault", "drivers": ["Robert Kubica", "Vitaly Petrov"] },
+      { "team": "Williams", "drivers": ["Rubens Barrichello", "Nico Hulkenberg"] },
+      { "team": "Force India", "drivers": ["Adrian Sutil", "Vitantonio Liuzzi"] },
+      { "team": "Toro Rosso", "drivers": ["Sebastien Buemi", "Jaime Alguersuari"] },
+      { "team": "Sauber", "drivers": ["Kamui Kobayashi", "Pedro de la Rosa"] },
+      { "team": "Lotus", "drivers": ["Heikki Kovalainen", "Jarno Trulli"] },
+      { "team": "Virgin", "drivers": ["Timo Glock", "Lucas di Grassi"] },
+      { "team": "HRT", "drivers": ["Bruno Senna", "Karun Chandhok"] }
+    ], "changes": ["Nick Heidfeld replaced de la Rosa at Sauber for the last five rounds.", "Michael Schumacher's comeback season after three years away."] },
+
+    { "year": 2011, "teams": [
+      { "team": "Red Bull", "drivers": ["Sebastian Vettel", "Mark Webber"] },
+      { "team": "McLaren", "drivers": ["Lewis Hamilton", "Jenson Button"] },
+      { "team": "Ferrari", "drivers": ["Fernando Alonso", "Felipe Massa"] },
+      { "team": "Mercedes", "drivers": ["Michael Schumacher", "Nico Rosberg"] },
+      { "team": "Renault", "drivers": ["Nick Heidfeld", "Vitaly Petrov"] },
+      { "team": "Force India", "drivers": ["Adrian Sutil", "Paul di Resta"] },
+      { "team": "Sauber", "drivers": ["Kamui Kobayashi", "Sergio Perez"] },
+      { "team": "Toro Rosso", "drivers": ["Sebastien Buemi", "Jaime Alguersuari"] },
+      { "team": "Williams", "drivers": ["Rubens Barrichello", "Pastor Maldonado"] },
+      { "team": "Lotus", "drivers": ["Heikki Kovalainen", "Jarno Trulli"] },
+      { "team": "Virgin", "drivers": ["Timo Glock", "Jerome d'Ambrosio"] },
+      { "team": "HRT", "drivers": ["Vitantonio Liuzzi", "Narain Karthikeyan"] }
+    ], "changes": ["Kubica's rally crash cost him the season; Heidfeld took the Renault seat, then Bruno Senna.", "Daniel Ricciardo made his debut at HRT from Silverstone."] },
+
+    { "year": 2012, "teams": [
+      { "team": "Red Bull", "drivers": ["Sebastian Vettel", "Mark Webber"] },
+      { "team": "Ferrari", "drivers": ["Fernando Alonso", "Felipe Massa"] },
+      { "team": "McLaren", "drivers": ["Lewis Hamilton", "Jenson Button"] },
+      { "team": "Lotus", "drivers": ["Kimi Raikkonen", "Romain Grosjean"] },
+      { "team": "Mercedes", "drivers": ["Michael Schumacher", "Nico Rosberg"] },
+      { "team": "Sauber", "drivers": ["Kamui Kobayashi", "Sergio Perez"] },
+      { "team": "Force India", "drivers": ["Nico Hulkenberg", "Paul di Resta"] },
+      { "team": "Williams", "drivers": ["Pastor Maldonado", "Bruno Senna"] },
+      { "team": "Toro Rosso", "drivers": ["Daniel Ricciardo", "Jean-Eric Vergne"] },
+      { "team": "Caterham", "drivers": ["Heikki Kovalainen", "Vitaly Petrov"] },
+      { "team": "Marussia", "drivers": ["Timo Glock", "Charles Pic"] },
+      { "team": "HRT", "drivers": ["Pedro de la Rosa", "Narain Karthikeyan"] }
+    ], "changes": ["Raikkonen's return after two years in rallying.", "Schumacher retired for good at season's end."] },
+
+    { "year": 2013, "teams": [
+      { "team": "Red Bull", "drivers": ["Sebastian Vettel", "Mark Webber"] },
+      { "team": "Ferrari", "drivers": ["Fernando Alonso", "Felipe Massa"] },
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Nico Rosberg"] },
+      { "team": "Lotus", "drivers": ["Kimi Raikkonen", "Romain Grosjean"] },
+      { "team": "McLaren", "drivers": ["Jenson Button", "Sergio Perez"] },
+      { "team": "Force India", "drivers": ["Paul di Resta", "Adrian Sutil"] },
+      { "team": "Sauber", "drivers": ["Nico Hulkenberg", "Esteban Gutierrez"] },
+      { "team": "Toro Rosso", "drivers": ["Daniel Ricciardo", "Jean-Eric Vergne"] },
+      { "team": "Williams", "drivers": ["Pastor Maldonado", "Valtteri Bottas"] },
+      { "team": "Marussia", "drivers": ["Jules Bianchi", "Max Chilton"] },
+      { "team": "Caterham", "drivers": ["Charles Pic", "Giedo van der Garde"] }
+    ], "changes": ["Hamilton's first year at Mercedes.", "Heikki Kovalainen replaced Raikkonen at Lotus for the last two rounds."] },
+
+    { "year": 2014, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Nico Rosberg"] },
+      { "team": "Red Bull", "drivers": ["Sebastian Vettel", "Daniel Ricciardo"] },
+      { "team": "Williams", "drivers": ["Valtteri Bottas", "Felipe Massa"] },
+      { "team": "Ferrari", "drivers": ["Fernando Alonso", "Kimi Raikkonen"] },
+      { "team": "McLaren", "drivers": ["Jenson Button", "Kevin Magnussen"] },
+      { "team": "Force India", "drivers": ["Nico Hulkenberg", "Sergio Perez"] },
+      { "team": "Toro Rosso", "drivers": ["Jean-Eric Vergne", "Daniil Kvyat"] },
+      { "team": "Lotus", "drivers": ["Romain Grosjean", "Pastor Maldonado"] },
+      { "team": "Marussia", "drivers": ["Jules Bianchi", "Max Chilton"] },
+      { "team": "Sauber", "drivers": ["Adrian Sutil", "Esteban Gutierrez"] },
+      { "team": "Caterham", "drivers": ["Kamui Kobayashi", "Marcus Ericsson"] }
+    ], "changes": ["First year of the V6 hybrid regulations.", "Bianchi's crash at Suzuka; he did not race again."] },
+
+    { "year": 2015, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Nico Rosberg"] },
+      { "team": "Ferrari", "drivers": ["Sebastian Vettel", "Kimi Raikkonen"] },
+      { "team": "Williams", "drivers": ["Valtteri Bottas", "Felipe Massa"] },
+      { "team": "Red Bull", "drivers": ["Daniel Ricciardo", "Daniil Kvyat"] },
+      { "team": "Force India", "drivers": ["Nico Hulkenberg", "Sergio Perez"] },
+      { "team": "Lotus", "drivers": ["Romain Grosjean", "Pastor Maldonado"] },
+      { "team": "Toro Rosso", "drivers": ["Max Verstappen", "Carlos Sainz"] },
+      { "team": "Sauber", "drivers": ["Marcus Ericsson", "Felipe Nasr"] },
+      { "team": "McLaren", "drivers": ["Fernando Alonso", "Jenson Button"] },
+      { "team": "Manor", "drivers": ["Will Stevens", "Roberto Merhi"] }
+    ], "changes": ["Verstappen debuted at 17, the youngest starter in F1 history.", "Vettel's first year at Ferrari."] },
+
+    { "year": 2016, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Nico Rosberg"] },
+      { "team": "Red Bull", "drivers": ["Daniel Ricciardo", "Daniil Kvyat"] },
+      { "team": "Ferrari", "drivers": ["Sebastian Vettel", "Kimi Raikkonen"] },
+      { "team": "Force India", "drivers": ["Nico Hulkenberg", "Sergio Perez"] },
+      { "team": "Williams", "drivers": ["Valtteri Bottas", "Felipe Massa"] },
+      { "team": "McLaren", "drivers": ["Fernando Alonso", "Jenson Button"] },
+      { "team": "Toro Rosso", "drivers": ["Max Verstappen", "Carlos Sainz"] },
+      { "team": "Haas", "drivers": ["Romain Grosjean", "Esteban Gutierrez"] },
+      { "team": "Renault", "drivers": ["Kevin Magnussen", "Jolyon Palmer"] },
+      { "team": "Sauber", "drivers": ["Marcus Ericsson", "Felipe Nasr"] },
+      { "team": "Manor", "drivers": ["Pascal Wehrlein", "Rio Haryanto"] }
+    ], "changes": [
+      "Verstappen and Kvyat swapped seats after four rounds; Verstappen won on debut for Red Bull in Spain.",
+      "Esteban Ocon replaced Haryanto at Manor for the second half.",
+      "Rosberg retired days after winning the title."
+    ] },
+
+    { "year": 2017, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Valtteri Bottas"] },
+      { "team": "Ferrari", "drivers": ["Sebastian Vettel", "Kimi Raikkonen"] },
+      { "team": "Red Bull", "drivers": ["Daniel Ricciardo", "Max Verstappen"] },
+      { "team": "Force India", "drivers": ["Sergio Perez", "Esteban Ocon"] },
+      { "team": "Williams", "drivers": ["Felipe Massa", "Lance Stroll"] },
+      { "team": "Renault", "drivers": ["Nico Hulkenberg", "Jolyon Palmer"] },
+      { "team": "Toro Rosso", "drivers": ["Carlos Sainz", "Daniil Kvyat"] },
+      { "team": "Haas", "drivers": ["Romain Grosjean", "Kevin Magnussen"] },
+      { "team": "McLaren", "drivers": ["Fernando Alonso", "Stoffel Vandoorne"] },
+      { "team": "Sauber", "drivers": ["Marcus Ericsson", "Pascal Wehrlein"] }
+    ], "changes": ["Sainz moved to Renault for the last four rounds; Gasly and Hartley debuted at Toro Rosso.", "Bottas replaced the retired Rosberg at Mercedes."] },
+
+    { "year": 2018, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Valtteri Bottas"] },
+      { "team": "Ferrari", "drivers": ["Sebastian Vettel", "Kimi Raikkonen"] },
+      { "team": "Red Bull", "drivers": ["Daniel Ricciardo", "Max Verstappen"] },
+      { "team": "Renault", "drivers": ["Nico Hulkenberg", "Carlos Sainz"] },
+      { "team": "Haas", "drivers": ["Romain Grosjean", "Kevin Magnussen"] },
+      { "team": "McLaren", "drivers": ["Fernando Alonso", "Stoffel Vandoorne"] },
+      { "team": "Force India", "drivers": ["Sergio Perez", "Esteban Ocon"] },
+      { "team": "Sauber", "drivers": ["Marcus Ericsson", "Charles Leclerc"] },
+      { "team": "Toro Rosso", "drivers": ["Pierre Gasly", "Brendon Hartley"] },
+      { "team": "Williams", "drivers": ["Lance Stroll", "Sergey Sirotkin"] }
+    ], "changes": ["Leclerc's rookie year.", "Alonso left F1 at the end of the season.", "Force India entered administration and returned as Racing Point Force India."] },
+
+    { "year": 2019, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Valtteri Bottas"] },
+      { "team": "Ferrari", "drivers": ["Sebastian Vettel", "Charles Leclerc"] },
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Pierre Gasly"] },
+      { "team": "McLaren", "drivers": ["Carlos Sainz", "Lando Norris"] },
+      { "team": "Renault", "drivers": ["Daniel Ricciardo", "Nico Hulkenberg"] },
+      { "team": "Toro Rosso", "drivers": ["Daniil Kvyat", "Alexander Albon"] },
+      { "team": "Racing Point", "drivers": ["Sergio Perez", "Lance Stroll"] },
+      { "team": "Alfa Romeo", "drivers": ["Kimi Raikkonen", "Antonio Giovinazzi"] },
+      { "team": "Haas", "drivers": ["Romain Grosjean", "Kevin Magnussen"] },
+      { "team": "Williams", "drivers": ["George Russell", "Robert Kubica"] }
+    ], "changes": ["Gasly and Albon swapped seats after Hungary.", "Rookie year for Norris, Russell and Albon.", "Kubica returned eight years after his rally crash."] },
+
+    { "year": 2020, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Valtteri Bottas"] },
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Alexander Albon"] },
+      { "team": "McLaren", "drivers": ["Carlos Sainz", "Lando Norris"] },
+      { "team": "Racing Point", "drivers": ["Sergio Perez", "Lance Stroll"] },
+      { "team": "Renault", "drivers": ["Daniel Ricciardo", "Esteban Ocon"] },
+      { "team": "Ferrari", "drivers": ["Sebastian Vettel", "Charles Leclerc"] },
+      { "team": "AlphaTauri", "drivers": ["Pierre Gasly", "Daniil Kvyat"] },
+      { "team": "Alfa Romeo", "drivers": ["Kimi Raikkonen", "Antonio Giovinazzi"] },
+      { "team": "Haas", "drivers": ["Romain Grosjean", "Kevin Magnussen"] },
+      { "team": "Williams", "drivers": ["George Russell", "Nicholas Latifi"] }
+    ], "changes": [
+      "Nico Hulkenberg stood in twice at Racing Point and once at Silverstone in place of Perez and Stroll.",
+      "Russell drove for Mercedes in Sakhir after Hamilton tested positive for Covid; Jack Aitken took the Williams.",
+      "Pietro Fittipaldi replaced Grosjean for the last two rounds after his Bahrain fire."
+    ] },
+
+    { "year": 2021, "teams": [
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "Valtteri Bottas"] },
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Sergio Perez"] },
+      { "team": "Ferrari", "drivers": ["Charles Leclerc", "Carlos Sainz"] },
+      { "team": "McLaren", "drivers": ["Daniel Ricciardo", "Lando Norris"] },
+      { "team": "Alpine", "drivers": ["Fernando Alonso", "Esteban Ocon"] },
+      { "team": "AlphaTauri", "drivers": ["Pierre Gasly", "Yuki Tsunoda"] },
+      { "team": "Aston Martin", "drivers": ["Sebastian Vettel", "Lance Stroll"] },
+      { "team": "Williams", "drivers": ["George Russell", "Nicholas Latifi"] },
+      { "team": "Alfa Romeo", "drivers": ["Kimi Raikkonen", "Antonio Giovinazzi"] },
+      { "team": "Haas", "drivers": ["Mick Schumacher", "Nikita Mazepin"] }
+    ], "changes": ["Alonso's return after two years away.", "Raikkonen's final season.", "Robert Kubica stood in twice at Alfa Romeo."] },
+
+    { "year": 2022, "teams": [
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Sergio Perez"] },
+      { "team": "Ferrari", "drivers": ["Charles Leclerc", "Carlos Sainz"] },
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "George Russell"] },
+      { "team": "Alpine", "drivers": ["Fernando Alonso", "Esteban Ocon"] },
+      { "team": "McLaren", "drivers": ["Lando Norris", "Daniel Ricciardo"] },
+      { "team": "Alfa Romeo", "drivers": ["Valtteri Bottas", "Zhou Guanyu"] },
+      { "team": "Aston Martin", "drivers": ["Sebastian Vettel", "Lance Stroll"] },
+      { "team": "Haas", "drivers": ["Kevin Magnussen", "Mick Schumacher"] },
+      { "team": "AlphaTauri", "drivers": ["Pierre Gasly", "Yuki Tsunoda"] },
+      { "team": "Williams", "drivers": ["Alexander Albon", "Nicholas Latifi"] }
+    ], "changes": [
+      "Ground-effect regulations; Magnussen returned to replace Mazepin days before the season.",
+      "Hulkenberg substituted for Vettel at the first two rounds.",
+      "Vettel retired at season's end; Ricciardo lost the McLaren seat to Piastri."
+    ] },
+
+    { "year": 2023, "teams": [
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Sergio Perez"] },
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "George Russell"] },
+      { "team": "Ferrari", "drivers": ["Charles Leclerc", "Carlos Sainz"] },
+      { "team": "McLaren", "drivers": ["Lando Norris", "Oscar Piastri"] },
+      { "team": "Aston Martin", "drivers": ["Fernando Alonso", "Lance Stroll"] },
+      { "team": "Alpine", "drivers": ["Pierre Gasly", "Esteban Ocon"] },
+      { "team": "Williams", "drivers": ["Alexander Albon", "Logan Sargeant"] },
+      { "team": "AlphaTauri", "drivers": ["Yuki Tsunoda", "Nyck de Vries"] },
+      { "team": "Alfa Romeo", "drivers": ["Valtteri Bottas", "Zhou Guanyu"] },
+      { "team": "Haas", "drivers": ["Kevin Magnussen", "Nico Hulkenberg"] }
+    ], "changes": [
+      "De Vries was dropped after ten rounds; Ricciardo returned, broke a hand at Zandvoort, and Liam Lawson deputised.",
+      "Piastri and Sargeant were the rookies."
+    ] },
+
+    { "year": 2024, "teams": [
+      { "team": "McLaren", "drivers": ["Lando Norris", "Oscar Piastri"] },
+      { "team": "Ferrari", "drivers": ["Charles Leclerc", "Carlos Sainz"] },
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Sergio Perez"] },
+      { "team": "Mercedes", "drivers": ["Lewis Hamilton", "George Russell"] },
+      { "team": "Aston Martin", "drivers": ["Fernando Alonso", "Lance Stroll"] },
+      { "team": "Alpine", "drivers": ["Pierre Gasly", "Esteban Ocon"] },
+      { "team": "Haas", "drivers": ["Nico Hulkenberg", "Kevin Magnussen"] },
+      { "team": "RB", "drivers": ["Yuki Tsunoda", "Daniel Ricciardo"] },
+      { "team": "Williams", "drivers": ["Alexander Albon", "Logan Sargeant"] },
+      { "team": "Kick Sauber", "drivers": ["Valtteri Bottas", "Zhou Guanyu"] }
+    ], "changes": [
+      "Oliver Bearman stood in for the appendicitis-struck Sainz at Ferrari in Jeddah, and later for Haas.",
+      "Franco Colapinto replaced Sargeant from Monza; Liam Lawson replaced Ricciardo from Austin.",
+      "Jack Doohan took Ocon's Alpine for the finale."
+    ] },
+
+    { "year": 2025, "teams": [
+      { "team": "McLaren", "drivers": ["Lando Norris", "Oscar Piastri"] },
+      { "team": "Ferrari", "drivers": ["Charles Leclerc", "Lewis Hamilton"] },
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Liam Lawson"] },
+      { "team": "Mercedes", "drivers": ["George Russell", "Kimi Antonelli"] },
+      { "team": "Aston Martin", "drivers": ["Fernando Alonso", "Lance Stroll"] },
+      { "team": "Alpine", "drivers": ["Pierre Gasly", "Jack Doohan"] },
+      { "team": "Haas", "drivers": ["Esteban Ocon", "Oliver Bearman"] },
+      { "team": "Racing Bulls", "drivers": ["Yuki Tsunoda", "Isack Hadjar"] },
+      { "team": "Williams", "drivers": ["Alexander Albon", "Carlos Sainz"] },
+      { "team": "Kick Sauber", "drivers": ["Nico Hulkenberg", "Gabriel Bortoleto"] }
+    ], "changes": [
+      "Hamilton's first season in red after twelve years at Mercedes.",
+      "Lawson and Tsunoda swapped seats after two rounds.",
+      "Franco Colapinto replaced Doohan at Alpine from Imola.",
+      "Rookies: Antonelli, Hadjar, Bortoleto, Doohan, Bearman."
+    ] },
+
+    { "year": 2026, "teams": [
+      { "team": "McLaren", "drivers": ["Lando Norris", "Oscar Piastri"] },
+      { "team": "Ferrari", "drivers": ["Charles Leclerc", "Lewis Hamilton"] },
+      { "team": "Mercedes", "drivers": ["George Russell", "Kimi Antonelli"] },
+      { "team": "Red Bull", "drivers": ["Max Verstappen", "Isack Hadjar"] },
+      { "team": "Racing Bulls", "drivers": ["Liam Lawson", "Arvid Lindblad"] },
+      { "team": "Aston Martin", "drivers": ["Fernando Alonso", "Lance Stroll"] },
+      { "team": "Williams", "drivers": ["Alexander Albon", "Carlos Sainz"] },
+      { "team": "Alpine", "drivers": ["Pierre Gasly", "Franco Colapinto"] },
+      { "team": "Haas", "drivers": ["Esteban Ocon", "Oliver Bearman"] },
+      { "team": "Audi", "drivers": ["Nico Hulkenberg", "Gabriel Bortoleto"] },
+      { "team": "Cadillac", "drivers": ["Sergio Perez", "Valtteri Bottas"] }
+    ], "changes": [
+      "New power unit and aero regulations; Cadillac joins as an eleventh team and Audi takes over Sauber.",
+      "Perez and Bottas return to the grid after a year out.",
+      "Lindblad is the rookie."
+    ] }
+  ]
+}
