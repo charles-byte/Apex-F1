@@ -1,9 +1,11 @@
 # Publishes the app to GitHub Pages on every push to main.
 #
-# The app is served as it is - there is no build step, and no Jekyll, because
-# deploying through Actions skips it. `enablement: true` turns Pages on the
-# first time this runs, so nothing has to be switched on by hand.
-name: Deploy to Pages
+# Pages is served from the gh-pages branch, so this rebuilds that branch from
+# main rather than using actions/deploy-pages: enabling the Actions source
+# needs repo-admin rights the workflow token does not have.
+#
+# There is no build step - the app is served exactly as it sits in the repo.
+name: Publish
 
 on:
   push:
@@ -11,35 +13,29 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: publish
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      # The data is the app: if a circuit outline no longer matches the lap
-      # length published for it, that is a bad deploy, not a bad test.
+      # The data is the app: if a circuit outline stops matching the lap length
+      # published for it, that is a bad deploy, not a bad test.
       - name: Check the data
         run: node build/test-data.mjs
 
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          touch .nojekyll          # serve the files as they are, no Jekyll
+          git checkout -q --orphan publish
+          git add -A
+          git commit -q -m "Publish ${GITHUB_SHA:0:7}"
+          git push -qf origin publish:gh-pages
