@@ -1,0 +1,17 @@
+{
+  "name": "apex-f1",
+  "private": true,
+  "description": "A memory trainer for Formula 1, paced by the race calendar.",
+  "scripts": {
+    "data": "node build/f1db.mjs --fetch",
+    "maps": "node build/maps.mjs --report",
+    "test": "node build/test-data.mjs && node build/test.mjs && node build/test-subpath.mjs",
+    "test:data": "node build/test-data.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

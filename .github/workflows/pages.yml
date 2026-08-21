@@ -1,0 +1,41 @@
+# Publishes the app to GitHub Pages on every push to main.
+#
+# Pages is served from the gh-pages branch, so this rebuilds that branch from
+# main rather than using actions/deploy-pages: enabling the Actions source
+# needs repo-admin rights the workflow token does not have.
+#
+# There is no build step - the app is served exactly as it sits in the repo.
+name: Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The data is the app: if a circuit outline stops matching the lap length
+      # published for it, that is a bad deploy, not a bad test.
+      - name: Check the data
+        run: node build/test-data.mjs
+
+      - name: Publish to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          touch .nojekyll          # serve the files as they are, no Jekyll
+          git checkout -q --orphan publish
+          git add -A
+          git commit -q -m "Publish ${GITHUB_SHA:0:7}"
+          git push -qf origin publish:gh-pages

@@ -1,0 +1,7 @@
+node_modules/
+
+# screenshots and the map contact sheet are build output, not source
+build/shots/
+
+# the F1DB clone the data is generated from; only the generated JSON is committed
+vendor/
