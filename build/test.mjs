@@ -280,9 +280,16 @@ await page.waitForSelector(".hero");
    guaranteed to come up in any one sitting. Start it, look for that
    question, and abandon the sitting and start again if it did not appear. */
 let verdictClass = null, optionsSeen = "";
-for (let attempt = 0; attempt < 8 && verdictClass === null; attempt++) {
+for (let attempt = 0; attempt < 10 && verdictClass === null; attempt++) {
+  /* Wipe the record before each attempt so the same round is always the one
+     pending. Otherwise a completed sitting checks that round off and the next
+     attempt is asking about a different race. */
+  await page.evaluate(() => localStorage.removeItem("apex.f1.v3"));
+  await page.reload();
+  await page.waitForSelector(".hero .btn.primary");
   await page.locator(".hero .btn.primary").click();
   await page.waitForSelector(".prompt");
+
   for (let i = 0; i < 40; i++) {
     if (await page.locator(".verdict").count()) {
       await page.locator(".qfoot .btn.primary").click();
@@ -290,8 +297,8 @@ for (let attempt = 0; attempt < 8 && verdictClass === null; attempt++) {
     }
     const opts = page.locator(".opts .opt");
     if (!(await opts.count())) {
-      /* an ordering question - answer it any old way and move on, we are
-         only hunting for the multiple-choice "who won" here */
+      /* an ordering question - answer it any old way; we are only hunting
+         for the multiple-choice "who won" here */
       if (await page.locator(".pool .btn").count()) {
         const slots = await page.locator(".order-slots .slot").count();
         for (let k = 0; k < slots; k++) {
@@ -306,8 +313,8 @@ for (let attempt = 0; attempt < 8 && verdictClass === null; attempt++) {
     }
     const prompt = await page.locator(".prompt").innerText();
     if (/who won the .*grand prix/i.test(prompt)) {
-      const labels = (await opts.allInnerTexts()).map((t) => t.trim());
-      optionsSeen = labels.map((t) => t.replace(/\s+/g, " ")).join(" | ");
+      const labels = (await opts.allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+      optionsSeen = labels.join(" | ");
       const idx = labels.findIndex((t) => t.endsWith(winner));
       if (idx >= 0) {
         await opts.nth(idx).click();
@@ -318,15 +325,6 @@ for (let attempt = 0; attempt < 8 && verdictClass === null; attempt++) {
     }
     await opts.first().click();
     await page.waitForTimeout(50);
-  }
-  if (verdictClass === null) {          // abandon this sitting and try again
-    const quit = page.locator(".qhead .btn.ghost");
-    if (await quit.count()) await quit.click();
-    await page.waitForTimeout(80);
-    if (!(await page.locator(".hero .btn.primary").count())) {
-      await page.locator(".nav button", { hasText: "Race" }).click();
-      await page.waitForSelector(".hero");
-    }
   }
 }
 check("the official winner was offered as an option", optionsSeen.includes(winner),
