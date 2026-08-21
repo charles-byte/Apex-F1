@@ -1,6 +1,6 @@
 /* Offline shell for Apex.
    Bump CACHE when any asset below changes, so phones pick up the new build. */
-const CACHE = "apex-f1-v4";
+const CACHE = "apex-f1-v5";
 const ASSETS = [
   "./", "./index.html", "./app.css", "./app.js",
   "./data/champions.json", "./data/lineups.json",

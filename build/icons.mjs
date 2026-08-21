@@ -1,88 +1,240 @@
-/* Generates the app icons: a rounded dark tile with a red apex chevron.
-   No image libraries in the repo, so the PNGs are encoded by hand. */
-import { deflateSync } from "node:zlib";
-import { writeFileSync } from "node:fs";
+/* Renders the app icons.
 
-function crc32(buf) {
-  let c, table = [];
-  for (let n = 0; n < 256; n++) {
-    c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c >>> 0;
+   Each design is an SVG drawn at 1024 and rasterised by Chromium at every
+   size the manifest asks for, so nothing is ever upscaled.
+
+   Two rules the designs follow, both about how phones actually show an icon:
+
+     full bleed    iOS applies its own squircle mask, so the source must be a
+                   plain square. Rounding the corners here as well leaves the
+                   art visibly inset inside the system's rounder corner.
+     safe zone     Android adaptive icons crop to a circle of 80% width, so
+                   the mark stays inside that circle and only background
+                   reaches the edges.
+
+     node build/icons.mjs --sheet     render every candidate + a contact sheet
+     node build/icons.mjs --pick <id> write icons/ from one design
+*/
+import { chromium } from "playwright";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
+
+const ROOT = new URL("..", import.meta.url).pathname;
+const circuits = JSON.parse(readFileSync(ROOT + "data/circuits.json", "utf8")).circuits;
+const track = (id) => circuits.find((c) => c.id === id).path;
+
+const RED = "#E10600", DEEP = "#0A0C10", CARBON = "#161B23";
+
+/* A circuit outline scaled into the safe zone, centred. */
+function trackMark(id, { stroke = 46, colour = "#fff" } = {}) {
+  return `<g transform="translate(512 512) scale(0.62) translate(-500 -500)">
+    <path d="${track(id)}" fill="none" stroke="${colour}" stroke-width="${stroke}"
+          stroke-linejoin="round" stroke-linecap="round"/>
+  </g>`;
+}
+
+const backdrop = (a, b) => `
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+    <stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/>
+  </linearGradient></defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>`;
+
+const DESIGNS = {
+  /* A corner: in on the straight, tight to the kerb, out the other side. */
+  apex: {
+    name: "Apex line",
+    blurb: "A corner taken properly, kerb and all — what the app is named after",
+    svg: `${backdrop("#1B2029", "#070A0E")}
+      <defs>
+        <clipPath id="kerbclip"><rect x="150" y="150" width="480" height="480"/></clipPath>
+      </defs>
+      <!-- kerb on the inside of the corner -->
+      <g clip-path="url(#kerbclip)">
+        <circle cx="286" cy="286" r="196" fill="none" stroke="#fff" stroke-width="56"/>
+        <circle cx="286" cy="286" r="196" fill="none" stroke="${RED}" stroke-width="56"
+                stroke-dasharray="52 52"/>
+      </g>
+      <!-- the line: down the straight, clipping the apex, away -->
+      <path d="M 168 214 L 470 214 C 690 214, 812 336, 812 556 L 812 870"
+            fill="none" stroke="#fff" stroke-width="104"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="596" cy="330" r="30" fill="${RED}"/>`
+  },
+
+  /* The app's own geometry, at icon size. */
+  suzuka: {
+    name: "Suzuka",
+    blurb: "Real survey geometry, drawn heavy enough to survive at 60px",
+    svg: `${backdrop("#1A1F27", "#06080B")}
+      <g transform="translate(512 512) scale(0.80) translate(-500 -500)">
+        <path d="${track("suzuka")}" fill="none" stroke="#fff" stroke-width="74"
+              stroke-linejoin="round" stroke-linecap="round"/>
+      </g>`
+  },
+
+  monza: {
+    name: "Monza on red",
+    blurb: "The temple of speed, white on F1 red",
+    svg: `${backdrop("#E10600", "#8E0400")}
+      <g transform="translate(512 512) scale(0.74) translate(-500 -500)">
+        <path d="${track("monza")}" fill="none" stroke="#fff" stroke-width="72"
+              stroke-linejoin="round" stroke-linecap="round"/>
+      </g>`
+  },
+
+  /* The letter, with the apex of the A doing the work. */
+  monogram: {
+    name: "Apex A",
+    blurb: "A hard monogram; the crossbar is the racing line",
+    svg: `${backdrop("#161B23", "#06080B")}
+      <path d="M 512 196 L 828 838 L 690 838 L 512 462 L 334 838 L 196 838 Z"
+            fill="#fff" stroke="#fff" stroke-width="26" stroke-linejoin="round"/>
+      <rect x="366" y="612" width="292" height="74" rx="37" fill="${RED}"/>
+      <circle cx="512" cy="252" r="40" fill="${RED}"/>`
+  },
+
+  /* Five reds, then out. Nothing says F1 faster. */
+  lights: {
+    name: "Start lights",
+    blurb: "The gantry at five — instantly readable at any size",
+    svg: `${backdrop("#171C24", "#06080B")}
+      <defs><radialGradient id="glow"><stop offset="0" stop-color="${RED}" stop-opacity=".55"/>
+        <stop offset="1" stop-color="${RED}" stop-opacity="0"/></radialGradient></defs>
+      <rect x="196" y="356" width="632" height="312" rx="70" fill="#0B0E13" stroke="#252C37" stroke-width="10"/>
+      ${[0, 1, 2, 3, 4].map((i) => {
+        const x = 276 + i * 118;
+        return `<circle cx="${x}" cy="512" r="92" fill="url(#glow)"/>
+                <circle cx="${x}" cy="512" r="46" fill="${RED}"/>
+                <circle cx="${x - 13}" cy="497" r="15" fill="#fff" opacity=".38"/>`;
+      }).join("")}`
+  },
+
+  /* Needle past the red. The gauge ring gives it a circular silhouette,
+     which is what makes it findable among a screen of square icons. */
+  redline: {
+    name: "Redline",
+    blurb: "A tacho swung into the red",
+    svg: `${backdrop("#1C222B", "#05070A")}
+      <defs>
+        <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FF3B30"/><stop offset="1" stop-color="#B00400"/>
+        </linearGradient>
+        <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="26"/>
+        </filter>
+      </defs>
+      <g transform="translate(512 528)">
+        <!-- the dial -->
+        <circle r="318" fill="none" stroke="#2A323E" stroke-width="84"/>
+        <!-- the run up to the limit -->
+        <path d="M ${318 * Math.cos(Math.PI * 0.80)} ${318 * Math.sin(Math.PI * 0.80)}
+                 A 318 318 0 1 1 ${318 * Math.cos(Math.PI * 0.07)} ${318 * Math.sin(Math.PI * 0.07)}"
+              fill="none" stroke="#48525F" stroke-width="84" stroke-linecap="round"/>
+        <!-- the red -->
+        <path d="M ${318 * Math.cos(Math.PI * -0.38)} ${318 * Math.sin(Math.PI * -0.38)}
+                 A 318 318 0 0 1 ${318 * Math.cos(Math.PI * 0.07)} ${318 * Math.sin(Math.PI * 0.07)}"
+              fill="none" stroke="${RED}" stroke-width="84" stroke-linecap="round"
+              filter="url(#soft)" opacity=".85"/>
+        <path d="M ${318 * Math.cos(Math.PI * -0.38)} ${318 * Math.sin(Math.PI * -0.38)}
+                 A 318 318 0 0 1 ${318 * Math.cos(Math.PI * 0.07)} ${318 * Math.sin(Math.PI * 0.07)}"
+              fill="none" stroke="url(#sweep)" stroke-width="84" stroke-linecap="round"/>
+        <!-- needle, buried in the red -->
+        <!-- the needle reaches into the red band, not short of it -->
+        <g transform="rotate(-22)">
+          <path d="M -34 50 L 268 -22 L 268 22 L -34 -50 Z" fill="#fff"/>
+        </g>
+        <circle r="66" fill="#0A0C10"/>
+        <circle r="66" fill="none" stroke="#fff" stroke-width="30"/>
+      </g>`
+  },
+
+  /* Chequer, cut on the diagonal. */
+  chequer: {
+    name: "Chequered sweep",
+    blurb: "The flag, taken at speed",
+    svg: `${backdrop("#12161D", "#06080B")}
+      <defs>
+        <pattern id="chq" width="128" height="128" patternUnits="userSpaceOnUse"
+                 patternTransform="rotate(-22 512 512)">
+          <rect width="128" height="128" fill="#fff"/>
+          <rect width="64" height="64" fill="#0A0C10"/>
+          <rect x="64" y="64" width="64" height="64" fill="#0A0C10"/>
+        </pattern>
+        <clipPath id="band">
+          <path d="M -140 700 L 620 -140 L 1010 -140 L 250 700 Z"
+                transform="translate(90 180)"/>
+        </clipPath>
+      </defs>
+      <rect width="1024" height="1024" fill="url(#chq)" clip-path="url(#band)"/>
+      <path d="M 150 880 C 420 700, 600 470, 700 150" fill="none"
+            stroke="${RED}" stroke-width="86" stroke-linecap="round"/>`
   }
-  let crc = 0xFFFFFFFF;
-  for (const b of buf) crc = table[(crc ^ b) & 0xFF] ^ (crc >>> 8);
-  return (crc ^ 0xFFFFFFFF) >>> 0;
+};
+
+/* ------------------------------------------------------------------ render */
+const page512 = (svg) =>
+  `<!doctype html><meta charset="utf-8">
+   <style>html,body{margin:0;padding:0;background:transparent}svg{display:block}</style>
+   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"
+        width="SIZE" height="SIZE">${svg}</svg>`;
+
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+
+async function raster(svg, size) {
+  const p = await browser.newPage({ viewport: { width: size, height: size } });
+  await p.setContent(page512(svg).replaceAll("SIZE", String(size)));
+  const buf = await p.screenshot({ omitBackground: true });
+  await p.close();
+  return buf;
 }
-function chunk(type, data) {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
-  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crc]);
-}
-function png(size, pixel) {
-  const stride = size * 4 + 1;
-  const raw = Buffer.alloc(stride * size);
-  for (let y = 0; y < size; y++) {
-    raw[y * stride] = 0;
-    for (let x = 0; x < size; x++) {
-      const [r, g, b, a] = pixel(x, y, size);
-      const o = y * stride + 1 + x * 4;
-      raw[o] = r; raw[o + 1] = g; raw[o + 2] = b; raw[o + 3] = a;
-    }
+
+const pickArg = process.argv.indexOf("--pick");
+if (pickArg > -1) {
+  const id = process.argv[pickArg + 1];
+  const d = DESIGNS[id];
+  if (!d) { console.error(`unknown design "${id}". one of: ${Object.keys(DESIGNS).join(", ")}`); process.exit(1); }
+  mkdirSync(ROOT + "icons", { recursive: true });
+  for (const [file, size] of [["icon-512.png", 512], ["icon-192.png", 192], ["apple-touch-icon.png", 180]]) {
+    writeFileSync(ROOT + "icons/" + file, await raster(d.svg, size));
+    console.log(`  ${file}  ${size}px`);
   }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
-    chunk("IHDR", ihdr),
-    chunk("IDAT", deflateSync(raw, { level: 9 })),
-    chunk("IEND", Buffer.alloc(0))
-  ]);
-}
-
-/* signed distance to a thick chevron, so the mark stays crisp at any size */
-function chevron(x, y, s) {
-  const u = x / s, v = y / s;
-  const cx = 0.5, apex = 0.30, foot = 0.74, half = 0.26, thick = 0.115;
-  // two legs of the chevron, as capsules from the apex down to each foot
-  const legs = [[cx, apex, cx - half, foot], [cx, apex, cx + half, foot]];
-  let d = 1;
-  for (const [x1, y1, x2, y2] of legs) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const t = Math.max(0, Math.min(1, ((u - x1) * dx + (v - y1) * dy) / (dx * dx + dy * dy)));
-    const px = x1 + t * dx - u, py = y1 + t * dy - v;
-    d = Math.min(d, Math.hypot(px, py));
+  writeFileSync(ROOT + "icons/icon.svg",
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">${d.svg}</svg>\n`);
+  console.log(`icons written from "${d.name}"`);
+} else {
+  mkdirSync(ROOT + "build/shots/icons", { recursive: true });
+  const cells = [];
+  for (const [id, d] of Object.entries(DESIGNS)) {
+    writeFileSync(`${ROOT}build/shots/icons/${id}.png`, await raster(d.svg, 512));
+    cells.push(`<figure>
+      <div class="row">
+        <img class="big" src="${id}.png" alt="">
+        <div class="stack"><img class="sm" src="${id}.png" alt=""><span>on a home screen</span></div>
+      </div>
+      <figcaption><b>${d.name}</b><code>${id}</code><span>${d.blurb}</span></figcaption>
+    </figure>`);
   }
-  return d - thick / 2;
+  writeFileSync(ROOT + "build/shots/icons/index.html", `<!doctype html>
+<meta charset="utf-8"><title>Apex icon candidates</title>
+<style>
+ body{background:#0B0D10;color:#EDF1F6;font:14px/1.5 Verdana,sans-serif;margin:26px;}
+ h1{font-size:17px;margin:0 0 4px}p.lead{color:#78849A;margin:0 0 22px;font-size:12.5px}
+ main{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px}
+ figure{margin:0;background:#141922;border:1px solid #242C38;border-radius:14px;padding:16px}
+ .row{display:flex;align-items:center;gap:18px}
+ img.big{width:150px;height:150px;border-radius:34px}
+ img.sm{width:62px;height:62px;border-radius:14px;display:block}
+ .stack{text-align:center}.stack span{font-size:9.5px;color:#68738A;display:block;margin-top:6px}
+ figcaption{margin-top:14px}
+ figcaption b{font-size:14px}
+ figcaption code{font-family:ui-monospace,monospace;font-size:11px;color:${RED};margin-left:8px}
+ figcaption span{display:block;color:#78849A;font-size:12px;margin-top:3px}
+</style>
+<h1>Apex — icon candidates</h1>
+<p class="lead">Large as you would see it in the gallery, small as it sits on a home screen.
+Corners are rounded here for the preview only; the files are full-bleed squares, because iOS masks them itself.</p>
+<main>${cells.join("")}</main>
+`);
+  console.log(`${Object.keys(DESIGNS).length} candidates → build/shots/icons/index.html`);
 }
-
-function draw(x, y, s) {
-  const u = x / s, v = y / s;
-  // rounded-square mask
-  const r = 0.21, k = Math.max(Math.abs(u - 0.5), Math.abs(v - 0.5));
-  const corner = Math.hypot(Math.max(Math.abs(u - 0.5) - (0.5 - r), 0), Math.max(Math.abs(v - 0.5) - (0.5 - r), 0));
-  const outside = k > 0.5 || corner > r;
-  if (outside) return [0, 0, 0, 0];
-
-  // background: a slight diagonal lift so the tile is not flat
-  const t = (u + v) / 2;
-  const bg = [11 + 18 * t, 13 + 20 * t, 16 + 24 * t];
-
-  const d = chevron(x, y, s);
-  const aa = 1.4 / s;
-  const inMark = 1 - Math.min(1, Math.max(0, (d + aa) / (2 * aa)));
-  const mark = [230, 60, 48];
-  return [
-    Math.round(bg[0] + (mark[0] - bg[0]) * inMark),
-    Math.round(bg[1] + (mark[1] - bg[1]) * inMark),
-    Math.round(bg[2] + (mark[2] - bg[2]) * inMark),
-    255
-  ];
-}
-
-for (const [name, size] of [["icon-192.png", 192], ["icon-512.png", 512], ["apple-touch-icon.png", 180]]) {
-  writeFileSync(new URL("../icons/" + name, import.meta.url), png(size, draw));
-  console.log("wrote icons/" + name);
-}
+await browser.close();
