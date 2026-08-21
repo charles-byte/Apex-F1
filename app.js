@@ -4,11 +4,15 @@
    It runs on the race calendar, not on the clock. There is no daily
    streak to keep and nothing goes stale overnight.
 
-   The loop is one check per Grand Prix. After a race you enter the result;
-   before the next one you sit a short test on the race just gone — plus
-   whatever you missed at an earlier check, plus a couple of questions on
-   the circuit you are about to watch. Miss something and it comes back
-   before the next race, not tomorrow.
+   The loop is one check per Grand Prix. After a race, a short test on the
+   race just gone — plus whatever you missed at an earlier check, plus a
+   couple of questions on the circuit you are about to watch. Miss something
+   and it comes back before the next race, not tomorrow.
+
+   Results are official. They ship in data/season-2026.json, generated from
+   F1DB by build/f1db.mjs, and the app has no way to edit them. An earlier
+   version had you type the results in and then graded you against your own
+   entry, which meant a misremembered result was marked correct forever.
 
    Recall is current season only. The championships, circuits and grids
    sit behind a Practice tab for when you feel like it, and never nag.
@@ -19,7 +23,7 @@
 (function () {
   "use strict";
 
-  var KEY = "apex.f1.v2";
+  var KEY = "apex.f1.v3";
   var SEASON = 2026;
   /* The pre-race check is the point of the app. These three are for the
      odd idle evening, and never nag. */
@@ -33,6 +37,7 @@
   var CIRC = {};        // id -> circuit
   var state = null;
   var view = "race";
+  var seasonTab = "races";
   var session = null;
   var sheet = null;
   var browseTrack = null;
@@ -122,9 +127,10 @@
   /* -------------------------------------------------------------- state */
   function freshState() {
     return {
-      v: 2,
+      v: 3,
       theme: "system",
-      results: {},      // "2026" -> round -> { quali, race, sprint }
+      /* No results here. They are official, they ship in data/, and the app
+         has no way to edit them - that is the whole point. */
       checks: {},       // round -> { done, n, c, onTime }
       carry: [],        // question keys you missed, re-asked at the next check
       practice: {},     // key -> { n, c }
@@ -135,16 +141,14 @@
   function load() {
     try {
       var s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.v === 2) return s;
-    } catch (e) {}
-    /* the first version scheduled by the day; keep the results, drop the rest */
-    try {
-      var old = JSON.parse(localStorage.getItem("apex.f1.v1"));
-      if (old && old.results) {
-        var carried = freshState();
-        carried.results = old.results;
-        carried.theme = old.theme || "system";
-        return carried;
+      if (s && s.v === 3) return s;
+      /* v2 graded you against results you had typed in, so its check scores
+         were measured against the wrong answer key. Keep the theme, drop the
+         scores, and let every check open again against the official result. */
+      if (s && s.v === 2) {
+        var moved = freshState();
+        moved.theme = s.theme || "system";
+        return moved;
       }
     } catch (e) {}
     return freshState();
@@ -231,34 +235,51 @@
   }
 
   /* --------------------------------------------------------------- 2026 */
-  function results2026() { return (state.results["2026"] = state.results["2026"] || {}); }
-  function roundResult(r) { return results2026()[String(r)] || null; }
+  /* Results are official. They ship in data/season-2026.json, generated from
+     F1DB by build/f1db.mjs, and nothing you do in the app can change them —
+     the whole point is that the answer key is not your own memory. */
+  function officialResults() { return DATA.season.results || {}; }
+  function roundResult(r) { return officialResults()[String(r)] || null; }
+  /* Rounds that have actually been run, in calendar order. */
   function racedRounds() {
-    var res = results2026();
     return DATA.season.rounds.filter(function (r) {
-      var x = res[String(r.round)];
+      var x = roundResult(r.round);
       return x && x.race && x.race.length >= 3;
     });
   }
-  function driverByCode(code) {
-    var d = DATA.season.drivers.filter(function (x) { return x.code === code; })[0];
-    return d || { code: code, name: code, team: "" };
+  var driverIndex = null;
+  function driverById(id) {
+    if (!driverIndex) {
+      driverIndex = {};
+      (DATA.season.drivers || []).forEach(function (d) { driverIndex[d.id] = d; });
+    }
+    return driverIndex[id] || { id: id, name: prettyId(id), code: "", team: "" };
   }
-  function driverName(code) { return driverByCode(code).name; }
+  function driverName(id) { return driverById(id).name; }
+  /* A driver who has left the grid still appears in an earlier result. */
+  function prettyId(id) {
+    return String(id).split("-").map(function (w) {
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(" ");
+  }
+  var teamIndex = null;
+  function teamName(id) {
+    if (!teamIndex) {
+      teamIndex = {};
+      (DATA.season.teams || []).forEach(function (t) { teamIndex[t.id] = t.name; });
+    }
+    return teamIndex[id] || prettyId(id);
+  }
 
   /* -------------------------------------------------------- 2026 standings */
-  var PTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
-  var SPRINT_PTS = [8, 7, 6, 5, 4, 3, 2, 1];
-  function standings2026() {
-    var tally = {};
-    DATA.season.drivers.forEach(function (d) { tally[d.code] = 0; });
-    Object.keys(results2026()).forEach(function (k) {
-      var r = results2026()[k];
-      (r.race || []).forEach(function (c, i) { if (PTS[i] && tally[c] !== undefined) tally[c] += PTS[i]; });
-      (r.sprint || []).forEach(function (c, i) { if (SPRINT_PTS[i] && tally[c] !== undefined) tally[c] += SPRINT_PTS[i]; });
-    });
-    return Object.keys(tally).map(function (c) { return { code: c, pts: tally[c] }; })
-      .sort(function (a, b) { return b.pts - a.pts; });
+  /* Also official: the championship after each round comes from F1DB rather
+     than being re-added from points here, so a penalty or an appeal that
+     changed the table is reflected exactly as it happened. */
+  function standingsNow() { return (DATA.season.standings || {}).drivers || []; }
+  function constructorsNow() { return (DATA.season.standings || {}).constructors || []; }
+  function standingsAfter(round) {
+    var r = roundResult(round);
+    return r && r.standingsAfter ? r.standingsAfter : [];
   }
 
   /* ==================================================================
@@ -418,17 +439,22 @@
       } });
     });
 
-    /* famous margins */
-    (DATA.champs.margins || []).forEach(function (m) {
-      out.push({ key: "champs:" + m.year + ":margin", make: function () {
-        var n = m.margin;
-        var wrong = uniq([n + 1, n + 3, n - 1, n + 5, n + 2].filter(function (x) { return x > 0 && x !== n; })).slice(0, 3);
+    /* Title margins, subtracted from the official points rather than
+       remembered as trivia. */
+    seasons.forEach(function (s) {
+      if (s.margin == null) return;
+      out.push({ key: "champs:" + s.year + ":margin", make: function () {
+        var n = s.margin;
+        var near = uniq([n + 1, n + 3, n - 1, n + 5, n + 2, n + 7]
+          .filter(function (x) { return x > 0 && x !== n; })).slice(0, 3);
         return mcq({
-          key: "champs:" + m.year + ":margin",
-          prompt: "By how many points did " + m.champion + " beat " + m.runnerUp + " in " + m.year + "?",
+          key: "champs:" + s.year + ":margin",
+          prompt: "By how many points did " + s.drivers[0].driver + " beat " +
+            s.drivers[1].driver + " in " + s.year + "?",
           correct: String(n),
-          wrong: wrong.map(String),
-          explain: "It was " + plural(n, "point") + ", settled at " + m.decidedAt + "."
+          wrong: near.map(String),
+          explain: s.drivers[0].driver + " " + s.drivers[0].points + ", " +
+            s.drivers[1].driver + " " + s.drivers[1].points + " — " + plural(n, "point") + "."
         });
       } });
     });
@@ -724,11 +750,13 @@
   }
 
   /* ------------------------------------------------------ the 2026 season */
+  /* Every answer below is read out of the official result. Nothing here is
+     graded against anything you typed — you cannot enter a result at all. */
   function bankRace() {
     var out = [], done = racedRounds();
     if (!done.length) return out;
 
-    var fieldNames = DATA.season.drivers.map(function (d) { return d.name; });
+    var field = (DATA.season.drivers || []).map(function (d) { return d.name; });
 
     done.forEach(function (rd) {
       var r = roundResult(rd.round);
@@ -736,183 +764,193 @@
       var tag = "R" + rd.round + " " + c.short;
       var K = "race:2026:" + rd.round + ":";
 
+      var finish = r.race.map(function (x) { return driverName(x.driver); });
+      var quali = (r.quali || []).map(function (x) { return driverName(x.driver); });
+      /* Distractors come from the field plus whoever was actually in this
+         race, so a plausible name is never a giveaway. */
+      var pool = uniq(field.concat(finish));
+      var others = function (right) {
+        return sample(pool.filter(function (n) { return n !== right; }), 3);
+      };
+
       out.push({ key: K + "win", make: function () {
         return mcq({
           key: K + "win", mapId: rd.circuit,
           prompt: "Who won the " + rd.gp + "?",
           sub: "Round " + rd.round + ", " + niceDate(rd.date),
-          correct: driverName(r.race[0]),
-          wrong: sample(fieldNames.filter(function (n) { return n !== driverName(r.race[0]); }), 3),
-          explain: driverName(r.race[0]) + " won " + tag + " from " +
-            driverName(r.race[1]) + " and " + driverName(r.race[2]) + "."
+          correct: finish[0], wrong: others(finish[0]),
+          explain: finish[0] + " won " + tag + " from " + finish[1] + " and " + finish[2] + "."
         });
       } });
 
       out.push({ key: K + "podium", make: function () {
         return order({
           key: K + "podium", mapId: rd.circuit,
-          prompt: rd.gp + " podium",
-          sub: "Winner first.",
-          items: r.race.slice(0, 3).map(driverName),
-          explain: r.race.slice(0, 3).map(function (code, i) {
-            return (i + 1) + ". " + driverName(code);
-          }).join("   ")
+          prompt: rd.gp + " podium", sub: "Winner first.",
+          items: finish.slice(0, 3),
+          explain: finish.slice(0, 3).map(function (n, i) { return (i + 1) + ". " + n; }).join("   ")
         });
       } });
 
-      if (r.race.length >= 6) out.push({ key: K + "top6", make: function () {
+      if (finish.length >= 6) out.push({ key: K + "top6", make: function () {
         return order({
           key: K + "top6", mapId: rd.circuit,
-          prompt: rd.gp + " — top six",
-          sub: "Put the first six finishers in order.",
-          items: r.race.slice(0, 6).map(driverName),
-          explain: r.race.slice(0, 6).map(function (code, i) {
-            return (i + 1) + ". " + surname(driverName(code));
-          }).join("   ")
+          prompt: rd.gp + " — top six", sub: "Put the first six finishers in order.",
+          items: finish.slice(0, 6),
+          explain: finish.slice(0, 6).map(function (n, i) { return (i + 1) + ". " + surname(n); }).join("   ")
         });
       } });
 
       [4, 7, 10].forEach(function (n) {
-        if (r.race.length < n) return;
+        if (finish.length < n) return;
         out.push({ key: K + "p" + n, make: function () {
-          var right = driverName(r.race[n - 1]);
+          var right = finish[n - 1];
           return mcq({
             key: K + "p" + n, mapId: rd.circuit,
             prompt: "Who finished " + ordinal(n) + " at " + tag + "?",
-            correct: right,
-            wrong: sample(r.race.map(driverName).filter(function (d) { return d !== right; })
-              .concat(fieldNames), 3),
+            correct: right, wrong: others(right),
             explain: right + " was " + ordinal(n) + " in the " + rd.gp + "."
           });
         } });
       });
 
-      if (r.quali && r.quali.length) {
+      if (quali.length) {
         out.push({ key: K + "pole", make: function () {
-          var right = driverName(r.quali[0]);
+          var right = quali[0];
           return mcq({
             key: K + "pole", mapId: rd.circuit,
             prompt: "Who took pole for the " + rd.gp + "?",
-            correct: right,
-            wrong: sample(fieldNames.filter(function (n) { return n !== right; }), 3),
+            correct: right, wrong: others(right),
             explain: right + " qualified on pole at " + tag +
-              (r.race[0] === r.quali[0] ? ", and converted it." : " — the race went to " + driverName(r.race[0]) + ".")
+              (finish[0] === right ? ", and converted it." : " — the race went to " + finish[0] + ".")
           });
         } });
 
-        if (r.quali.length >= 4) out.push({ key: K + "front2", make: function () {
+        if (quali.length >= 4) out.push({ key: K + "front2", make: function () {
           return order({
             key: K + "front2", mapId: rd.circuit,
-            prompt: rd.gp + " — the front two rows",
-            sub: "Grid order, pole first.",
-            items: r.quali.slice(0, 4).map(driverName),
-            explain: r.quali.slice(0, 4).map(function (code, i) {
-              return "P" + (i + 1) + " " + surname(driverName(code));
-            }).join("   ")
-          });
-        } });
-
-        out.push({ key: K + "mover", make: function () {
-          var best = null;
-          r.race.forEach(function (code, i) {
-            var g = r.quali.indexOf(code);
-            if (g < 0) return;
-            var gain = g - i;
-            if (!best || gain > best.gain) best = { code: code, gain: gain, from: g + 1, to: i + 1 };
-          });
-          if (!best || best.gain <= 0) return null;
-          var right = driverName(best.code);
-          return mcq({
-            key: K + "mover", mapId: rd.circuit,
-            prompt: "Who gained the most places at " + tag + "?",
-            sub: "Grid position to finishing position.",
-            correct: right,
-            wrong: sample(r.race.map(driverName).filter(function (d) { return d !== right; }), 3),
-            explain: right + " went from P" + best.from + " to P" + best.to +
-              ", a gain of " + plural(best.gain, "place") + "."
+            prompt: rd.gp + " — the front two rows", sub: "Grid order, pole first.",
+            items: quali.slice(0, 4),
+            explain: quali.slice(0, 4).map(function (n, i) { return "P" + (i + 1) + " " + surname(n); }).join("   ")
           });
         } });
       }
 
-      if (r.sprint && r.sprint.length >= 3) {
-        out.push({ key: K + "sprintwin", make: function () {
-          var right = driverName(r.sprint[0]);
-          return mcq({
-            key: K + "sprintwin", mapId: rd.circuit,
-            prompt: "Who won the sprint at " + tag + "?",
-            correct: right,
-            wrong: sample(fieldNames.filter(function (n) { return n !== right; }), 3),
-            explain: right + " won the " + rd.gp + " sprint" +
-              (r.race[0] === r.sprint[0] ? " and the Grand Prix." : "; " + driverName(r.race[0]) + " won the race.")
-          });
-        } });
-      }
-
-      out.push({ key: K + "where", make: function () {
-        var others = DATA.season.rounds.filter(function (x) { return x.round !== rd.round; });
+      /* The official grid position is on the result row, so this is the real
+         move through the field, not one inferred from qualifying order. */
+      out.push({ key: K + "mover", make: function () {
+        var best = null;
+        r.race.forEach(function (x) {
+          if (!x.grid || !x.pos) return;
+          var gain = x.grid - x.pos;
+          if (!best || gain > best.gain) best = { name: driverName(x.driver), gain: gain, from: x.grid, to: x.pos };
+        });
+        if (!best || best.gain <= 0) return null;
         return mcq({
-          key: K + "where",
-          prompt: "Which race was round " + rd.round + " of 2026?",
-          correct: rd.gp,
-          wrong: sample(others, 3).map(function (x) { return x.gp; }),
-          explain: "Round " + rd.round + " was the " + rd.gp + " at " + (c.name || c.short) +
-            ", on " + niceDate(rd.date) + "."
+          key: K + "mover", mapId: rd.circuit,
+          prompt: "Who gained the most places at " + tag + "?",
+          sub: "Grid position to finishing position.",
+          correct: best.name, wrong: others(best.name),
+          explain: best.name + " went from P" + best.from + " to P" + best.to +
+            " — " + plural(best.gain, "place") + "."
         });
       } });
+
+      if (r.sprint && r.sprint.length) out.push({ key: K + "sprint", make: function () {
+        var right = driverName(r.sprint[0].driver);
+        return mcq({
+          key: K + "sprint", mapId: rd.circuit,
+          prompt: "Who won the sprint at " + tag + "?",
+          correct: right, wrong: others(right),
+          explain: right + " won the " + c.short + " sprint" +
+            (finish[0] === right ? " and the Grand Prix." : "; " + finish[0] + " won the Grand Prix.")
+        });
+      } });
+
+      /* The championship as it stood that weekend, which is the thing you
+         actually watched — not as it stands now. */
+      if (r.standingsAfter && r.standingsAfter.length > 1) {
+        out.push({ key: K + "leader", make: function () {
+          var right = driverName(r.standingsAfter[0].driver);
+          return mcq({
+            key: K + "leader", mapId: rd.circuit,
+            prompt: "Who led the championship after " + tag + "?",
+            correct: right, wrong: others(right),
+            explain: "After round " + rd.round + ": " + r.standingsAfter.slice(0, 3).map(function (s) {
+              return surname(driverName(s.driver)) + " " + s.points;
+            }).join(", ") + "."
+          });
+        } });
+      }
     });
 
-    /* season-wide, once there is enough of a season to ask about */
-    if (done.length >= 3) {
+    /* where it stands now */
+    var latest = done[done.length - 1];
+    var table = standingsNow();
+    if (table.length > 3) {
       out.push({ key: "race:2026:leader", make: function () {
-        var st = standings2026().filter(function (x) { return x.pts > 0; });
-        if (st.length < 4) return null;
-        var right = driverName(st[0].code);
+        var right = driverName(table[0].driver);
         return mcq({
           key: "race:2026:leader",
-          prompt: "Who leads the 2026 championship on the results you have entered?",
-          sub: "After " + plural(done.length, "round") + ".",
+          prompt: "Who leads the 2026 championship?",
+          sub: "After round " + latest.round + ".",
           correct: right,
-          wrong: st.slice(1, 6).map(function (x) { return driverName(x.code); }).slice(0, 3),
-          explain: st.slice(0, 4).map(function (x, i) {
-            return (i + 1) + ". " + surname(driverName(x.code)) + " " + x.pts;
+          wrong: sample(table.slice(1).map(function (s) { return driverName(s.driver); }), 3),
+          explain: table.slice(0, 3).map(function (s, i) {
+            return (i + 1) + ". " + driverName(s.driver) + " " + s.points;
           }).join("   ")
         });
       } });
 
-      out.push({ key: "race:2026:wins", make: function () {
-        var w = {};
-        done.forEach(function (rd) { var c = roundResult(rd.round).race[0]; w[c] = (w[c] || 0) + 1; });
-        var rank = Object.keys(w).sort(function (a, b) { return w[b] - w[a]; });
-        if (rank.length < 2) return null;
-        var right = driverName(rank[0]);
-        return mcq({
-          key: "race:2026:wins",
-          prompt: "Who has won the most races in 2026 so far?",
-          correct: right,
-          wrong: sample(fieldNames.filter(function (n) { return n !== right; }), 3),
-          explain: rank.slice(0, 3).map(function (c) {
-            return surname(driverName(c)) + " " + plural(w[c], "win");
-          }).join("   ")
-        });
-      } });
-
-      out.push({ key: "race:2026:winners", make: function () {
-        var seq = done.slice(-4);
-        if (seq.length < 3) return null;
+      out.push({ key: "race:2026:top4", make: function () {
         return order({
-          key: "race:2026:winners",
-          prompt: "The last few winners",
-          sub: "Put these rounds in the order they were raced.",
-          items: seq.map(function (rd) {
-            return (CIRC[rd.circuit] ? CIRC[rd.circuit].short : rd.gp) + " — " +
-              surname(driverName(roundResult(rd.round).race[0]));
-          }),
-          explain: seq.map(function (rd) {
-            return "R" + rd.round + " " + surname(driverName(roundResult(rd.round).race[0]));
+          key: "race:2026:top4",
+          prompt: "The championship, top four",
+          sub: "After round " + latest.round + ".",
+          items: table.slice(0, 4).map(function (s) { return driverName(s.driver); }),
+          explain: table.slice(0, 4).map(function (s) {
+            return s.pos + ". " + surname(driverName(s.driver)) + " " + s.points;
           }).join("   ")
         });
       } });
     }
+
+    var ctors = constructorsNow();
+    if (ctors.length > 3) out.push({ key: "race:2026:ctor", make: function () {
+      var right = teamName(ctors[0].team);
+      return mcq({
+        key: "race:2026:ctor",
+        prompt: "Which team leads the constructors' championship?",
+        sub: "After round " + latest.round + ".",
+        correct: right,
+        wrong: sample(ctors.slice(1).map(function (s) { return teamName(s.team); }), 3),
+        explain: ctors.slice(0, 3).map(function (s, i) {
+          return (i + 1) + ". " + teamName(s.team) + " " + s.points;
+        }).join("   ")
+      });
+    } });
+
+    /* kept for the check's "wins" slot */
+    out.push({ key: "race:2026:wins", make: function () {
+      var tally = {};
+      done.forEach(function (rd) {
+        var w = driverName(roundResult(rd.round).race[0].driver);
+        tally[w] = (tally[w] || 0) + 1;
+      });
+      var names = Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; });
+      if (!names.length) return null;
+      var right = names[0];
+      return mcq({
+        key: "race:2026:wins",
+        prompt: "Who has won the most races in 2026?",
+        sub: "After round " + latest.round + ".",
+        correct: right,
+        wrong: sample(field.filter(function (n) { return n !== right; }), 3),
+        explain: names.slice(0, 4).map(function (n) {
+          return surname(n) + " " + plural(tally[n], "win");
+        }).join(", ") + "."
+      });
+    } });
 
     return out;
   }
@@ -1139,12 +1177,16 @@
           onclick: function () { startCheck(pending); } })
       ]));
     } else if (past && !roundResult(past.round)) {
+      /* The race has happened but the official result has not reached this
+         copy of the app yet — results refresh with a new build, they are
+         never typed in. */
       wrap.appendChild(el("div", { class: "hero" }, [
         el("p", { class: "kicker", text: "Round " + past.round + " has been run" }),
-        el("h2", { text: "Enter the " + (CIRC[past.circuit] || {}).short + " result" }),
-        el("p", { text: "The finishing order is what the next check is built from. The podium is enough." }),
-        el("button", { class: "btn primary wide", text: "Enter the result",
-          onclick: function () { view = "season"; render(); roundSheet(past); } })
+        el("h2", { text: "Waiting on the official result" }),
+        el("p", { text: (CIRC[past.circuit] || {}).short + " is not in the results file yet. " +
+          "It lands with the next update, and the check opens by itself — there is nothing to enter." }),
+        el("button", { class: "btn wide", text: "See the season",
+          onclick: function () { view = "season"; render(); } })
       ]));
     } else {
       var lastDone = lastRaced();
@@ -1153,12 +1195,12 @@
         el("p", { class: "kicker", text: chk ? "Round " + lastDone.round + " checked" : "Nothing to check yet" }),
         el("h2", { text: chk ? chk.c + " of " + chk.n + " right" : "Waiting on a race" }),
         el("p", { text: chk
-          ? "You are square with the season. The next check opens when you enter the " +
-            (nxt ? (CIRC[nxt.circuit] || {}).short : "next") + " result."
-          : "Enter a race result on the Season tab and the check opens here." }),
+          ? "You are square with the season. The next check opens by itself once " +
+            (nxt ? (CIRC[nxt.circuit] || {}).short : "the next round") + " has been run."
+          : "The first check opens as soon as a round has been run." }),
         chk ? el("button", { class: "btn wide", text: "Take it again",
           onclick: function () { startCheck(lastDone); } })
-          : el("button", { class: "btn wide", text: "Go to the season",
+          : el("button", { class: "btn wide", text: "See the season",
             onclick: function () { view = "season"; render(); } })
       ]));
     }
@@ -1483,172 +1525,187 @@
   }
 
   /* ------------------------------------------------------------- season */
+  /* Read-only. The results are official and arrive with the app; there is
+     nothing here to type in, and nothing you could type that would change
+     what a check marks as correct. */
   function viewSeason() {
     var wrap = el("div", { class: "wrap" });
     var done = racedRounds();
+    var nxt = nextRace();
+
     wrap.appendChild(el("div", { class: "top" }, [
       el("div", {}, [
-        el("p", { class: "kicker", text: "Season 2026" }),
-        el("h1", { class: "title", text: plural(done.length, "round") + " in" })
+        el("p", { class: "kicker", text: "Season " + DATA.season.year }),
+        el("h1", { class: "title", text: done.length + " of " + DATA.season.rounds.length + " run" })
       ]),
-      pendingRound() ? el("button", { class: "btn sm", text: "Check",
-        onclick: function () { startCheck(pendingRound()); } }) : null
+      el("button", { class: "btn sm ghost", html: icon(ICON.gear), "aria-label": "Settings", onclick: settingsSheet })
     ]));
 
-    if (!done.length) {
-      wrap.appendChild(el("div", { class: "card" }, [
-        el("p", { class: "explain", text:
-          "No results yet. As each Grand Prix finishes, open the round and enter the order you want to be tested on — " +
-          "the podium is enough to start with, and qualifying and the sprint are optional. Everything you enter " +
-          "becomes questions in the next session." })
-      ]));
-    }
+    var seg = el("div", { class: "seg" });
+    [["races", "Races"], ["drivers", "Drivers"], ["teams", "Teams"]].forEach(function (p) {
+      seg.appendChild(el("button", {
+        class: seasonTab === p[0] ? "on" : "", text: p[1],
+        onclick: function () { seasonTab = p[0]; render(); }
+      }));
+    });
+    wrap.appendChild(seg);
 
-    if (done.length >= 2) {
-      var st = standings2026().filter(function (x) { return x.pts > 0; }).slice(0, 5);
-      var card = el("div", { class: "card" }, [el("p", { class: "kicker", text: "Standings from what you have entered" })]);
-      var list = el("div", { class: "list" });
-      st.forEach(function (x, i) {
-        var d = driverByCode(x.code);
-        list.appendChild(el("div", { class: "li" }, [
-          el("span", { class: "num" + (i < 3 ? " p" + (i + 1) : ""), text: String(i + 1) }),
-          el("span", { class: "teamdot", style: "background:" + teamColor(d.team) }),
-          el("b", { class: "grow", text: d.name }),
-          el("span", { class: "right", text: String(x.pts) })
+    if (seasonTab === "races") {
+      var list = el("div", { class: "rounds" });
+      DATA.season.rounds.forEach(function (rd) {
+        var r = roundResult(rd.round);
+        var c = CIRC[rd.circuit] || {};
+        var chk = checkFor(rd.round);
+        list.appendChild(el("button", {
+          class: "round" + (r ? " has" : "") + (nxt && nxt.round === rd.round ? " next" : ""),
+          onclick: function () { roundSheet(rd); }
+        }, [
+          el("span", { class: "num", text: String(rd.round) }),
+          el("div", { style: "width:32px;flex:none" }, [mapNode(rd.circuit)]),
+          el("div", { class: "grow" }, [
+            el("b", { text: c.short || rd.gp }),
+            el("div", { class: "small muted", text: r
+              ? driverName(r.race[0].driver) + " won"
+              : (nxt && nxt.round === rd.round ? countdown(rd) : niceDate(rd.date)) })
+          ]),
+          chk ? el("span", { class: "chip " + (pct(chk.c, chk.n) >= 70 ? "good" : ""),
+            text: chk.c + "/" + chk.n }) : (r ? el("span", { class: "chip warn", text: "not checked" }) : null)
         ]));
       });
-      card.appendChild(list);
-      wrap.appendChild(card);
+      wrap.appendChild(list);
+    } else if (seasonTab === "drivers") {
+      wrap.appendChild(standingsCard("Drivers' championship", standingsNow().map(function (s) {
+        var d = driverById(s.driver);
+        return { pos: s.pos, name: d.name, sub: teamName(d.team), points: s.points };
+      })));
+    } else {
+      wrap.appendChild(standingsCard("Constructors' championship", constructorsNow().map(function (s) {
+        return { pos: s.pos, name: teamName(s.team), sub: "", points: s.points };
+      })));
     }
 
-    var rounds = el("div", { class: "rounds" });
-    DATA.season.rounds.forEach(function (rd) {
-      var r = roundResult(rd.round);
-      var has = r && r.race && r.race.length >= 3;
-      var c = CIRC[rd.circuit];
-      rounds.appendChild(el("button", {
-        class: "round" + (has ? " done" : ""),
-        onclick: function () { roundSheet(rd); }
-      }, [
-        el("span", { class: "rn", text: String(rd.round) }),
-        mapNode(rd.circuit),
-        el("span", { class: "grow" }, [
-          el("b", { text: c ? c.short : rd.gp }),
-          el("span", { text: niceDate(rd.date) + (rd.sprint ? " · sprint" : "") })
-        ]),
-        el("span", { class: "state" }, [
-          has ? el("span", { class: "chip good", text: surname(driverName(r.race[0])) })
-              : el("span", { class: "chip", text: "add" })
-        ])
-      ]));
-    });
-    wrap.appendChild(rounds);
+    wrap.appendChild(el("p", { class: "small muted", style: "margin-top:14px",
+      text: "Official results from F1DB, current to round " +
+        (done.length ? done[done.length - 1].round : 0) + "." }));
     return wrap;
   }
 
-  function roundSheet(rd) {
-    var r = roundResult(rd.round) || {};
-    var c = CIRC[rd.circuit];
-    var body = el("div", {}, [el("div", { class: "sheet-grip" })]);
-    body.appendChild(el("div", { class: "row", style: "gap:12px;margin-bottom:12px" }, [
-      el("div", { style: "width:64px;flex:none" }, [mapNode(rd.circuit)]),
-      el("div", { class: "grow" }, [
-        el("p", { class: "kicker", text: "Round " + rd.round + " · " + niceDate(rd.date) }),
-        el("h2", { class: "title", style: "font-size:20px", text: rd.gp })
-      ])
-    ]));
-
-    ["quali", "race", "sprint"].forEach(function (mode) {
-      if (mode === "sprint" && !rd.sprint) return;
-      var arr = r[mode] || [];
-      var label = mode === "quali" ? "Qualifying" : mode === "race" ? "Race" : "Sprint";
-      body.appendChild(el("div", { class: "row between", style: "margin:16px 0 6px" }, [
-        el("p", { class: "kicker", style: "margin:0", text: label }),
-        el("button", { class: "btn sm", text: arr.length ? "Edit" : "Add",
-          onclick: function () { openEntry(rd, mode); } })
-      ]));
-      if (!arr.length) {
-        body.appendChild(el("p", { class: "small muted", text: "Not entered." }));
-      } else {
-        var list = el("div", { class: "list" });
-        arr.forEach(function (code, i) {
-          var d = driverByCode(code);
-          list.appendChild(el("div", { class: "li" }, [
-            el("span", { class: "num" + (i < 3 ? " p" + (i + 1) : ""), text: String(i + 1) }),
-            el("span", { class: "teamdot", style: "background:" + teamColor(d.team) }),
-            el("b", { class: "grow", text: d.name }),
-            el("span", { class: "right", text: d.team })
-          ]));
-        });
-        body.appendChild(list);
-      }
-    });
-
-    body.appendChild(el("button", { class: "btn wide", style: "margin-top:18px", text: "Close", onclick: closeSheet }));
-    openSheet(body);
-  }
-
-  function openEntry(rd, mode) {
-    var r = roundResult(rd.round) || {};
-    entry = { round: rd.round, mode: mode, order: (r[mode] || []).slice(), rd: rd };
-    renderEntry();
-  }
-  function renderEntry() {
-    var rd = entry.rd;
-    var label = entry.mode === "quali" ? "Qualifying order" : entry.mode === "race" ? "Finishing order" : "Sprint order";
-    var body = el("div", {}, [el("div", { class: "sheet-grip" })]);
-    body.appendChild(el("p", { class: "kicker", text: rd.gp + " · round " + rd.round }));
-    body.appendChild(el("h2", { class: "title", style: "font-size:20px;margin:0 0 2px", text: label }));
-    body.appendChild(el("p", { class: "sub", style: "margin-bottom:14px",
-      text: "Tap drivers in order. Three is enough; go as deep as you want to be tested on. Tap a filled row to remove it." }));
-
-    var slots = el("div", { class: "order-slots" });
-    var depth = Math.min(DATA.season.drivers.length, Math.max(entry.order.length + 1, 3));
-    for (var i = 0; i < depth; i++) {
-      (function (i) {
-        var code = entry.order[i];
-        var d = code ? driverByCode(code) : null;
-        slots.appendChild(el("div", {
-          class: "slot" + (code ? " filled" : ""),
-          onclick: function () { if (code) { entry.order.splice(i, 1); renderEntry(); } }
-        }, [
-          el("span", { class: "pos", text: String(i + 1) }),
-          d ? el("span", { class: "teamdot", style: "background:" + teamColor(d.team) }) : null,
-          el("span", { class: "grow", text: d ? d.name : "" })
-        ]));
-      })(i);
+  function standingsCard(title, rows) {
+    var card = el("div", { class: "card" }, [
+      el("p", { class: "kicker", style: "margin-bottom:4px", text: title })
+    ]);
+    if (!rows.length) {
+      card.appendChild(el("p", { class: "small muted", text: "Nothing yet — no rounds have been run." }));
+      return card;
     }
-    body.appendChild(slots);
-
-    var pool = el("div", { class: "pool", style: "margin-bottom:16px" });
-    DATA.season.drivers.forEach(function (d) {
-      var used = entry.order.indexOf(d.code) >= 0;
-      pool.appendChild(el("button", {
-        class: "btn sm" + (used ? " used" : ""),
-        style: "border-left:3px solid " + teamColor(d.team),
-        text: surname(d.name),
-        onclick: function () { entry.order.push(d.code); renderEntry(); }
-      }));
+    var list = el("div", { class: "list" });
+    rows.forEach(function (r) {
+      list.appendChild(el("div", { class: "li" }, [
+        el("span", { class: "num", text: String(r.pos) }),
+        el("div", { class: "grow" }, [
+          el("b", { text: r.name }),
+          r.sub ? el("div", { class: "small muted", text: r.sub }) : null
+        ]),
+        el("span", { class: "pts", text: String(r.points) })
+      ]));
     });
-    body.appendChild(pool);
-
-    body.appendChild(el("div", { class: "stack" }, [
-      el("button", { class: "btn primary wide", text: "Save", onclick: saveEntry }),
-      el("button", { class: "btn wide ghost", text: "Cancel", onclick: function () { entry = null; roundSheet(rd); } })
-    ]));
-    openSheet(body);
+    card.appendChild(list);
+    return card;
   }
-  function saveEntry() {
-    var res = results2026();
-    var r = res[String(entry.round)] || {};
-    r[entry.mode] = entry.order.slice();
-    res[String(entry.round)] = r;
-    save();
-    rebuildBank();
-    var rd = entry.rd;
-    entry = null;
-    toast("Saved");
-    roundSheet(rd);
+
+  /* One round, in full. This is the revision material for its check. */
+  function roundSheet(rd) {
+    var c = CIRC[rd.circuit] || {};
+    var r = roundResult(rd.round);
+    var body = el("div", {}, [
+      el("div", { class: "sheet-grip" }),
+      el("div", { class: "row", style: "gap:14px;align-items:center" }, [
+        el("div", { style: "width:74px;flex:none" }, [mapNode(rd.circuit)]),
+        el("div", { class: "grow" }, [
+          el("p", { class: "kicker", text: "Round " + rd.round }),
+          el("h2", { style: "margin:2px 0 2px;font-size:19px", text: c.short || rd.gp }),
+          el("p", { class: "small muted", text: rd.gp + " · " + niceDate(rd.date) +
+            (rd.sprint ? " · sprint" : "") })
+        ])
+      ])
+    ]);
+
+    if (!r) {
+      body.appendChild(el("p", { class: "explain", style: "margin-top:16px",
+        text: nextRace() && nextRace().round === rd.round
+          ? "Not run yet — " + countdown(rd).toLowerCase() + ". The check for it opens once the result is published."
+          : "Not run yet." }));
+      body.appendChild(el("button", { class: "btn wide", style: "margin-top:14px",
+        text: "Close", onclick: closeSheet }));
+      openSheet(body);
+      return;
+    }
+
+    var chk = checkFor(rd.round);
+    if (chk) body.appendChild(el("p", { class: "explain", style: "margin-top:14px",
+      text: "You scored " + chk.c + " of " + chk.n + " on this one." }));
+
+    function table(label, rows, render) {
+      if (!rows || !rows.length) return;
+      body.appendChild(el("p", { class: "kicker", style: "margin:16px 0 4px", text: label }));
+      var list = el("div", { class: "list" });
+      rows.forEach(function (x, i) { list.appendChild(render(x, i)); });
+      body.appendChild(list);
+    }
+
+    table("Race", r.race.slice(0, 10), function (x) {
+      var moved = x.grid ? x.grid - x.pos : 0;
+      return el("div", { class: "li" }, [
+        el("span", { class: "num", text: String(x.pos) }),
+        el("div", { class: "grow" }, [
+          el("b", { text: driverName(x.driver) }),
+          el("div", { class: "small muted", text: teamName(x.team) })
+        ]),
+        x.grid ? el("span", { class: "chip " + (moved > 0 ? "good" : moved < 0 ? "bad" : ""),
+          text: moved > 0 ? "+" + moved : moved < 0 ? String(moved) : "—" }) : null,
+        el("span", { class: "pts", text: x.points ? String(x.points) : "" })
+      ]);
+    });
+
+    table("Qualifying", (r.quali || []).slice(0, 10), function (x) {
+      return el("div", { class: "li" }, [
+        el("span", { class: "num", text: String(x.pos) }),
+        el("div", { class: "grow" }, [el("b", { text: driverName(x.driver) })])
+      ]);
+    });
+
+    table("Sprint", (r.sprint || []).slice(0, 8), function (x) {
+      return el("div", { class: "li" }, [
+        el("span", { class: "num", text: String(x.pos) }),
+        el("div", { class: "grow" }, [el("b", { text: driverName(x.driver) })])
+      ]);
+    });
+
+    table("Did not finish", r.retired || [], function (x) {
+      return el("div", { class: "li" }, [
+        el("div", { class: "grow" }, [
+          el("b", { text: driverName(x.driver) }),
+          el("div", { class: "small muted", text: x.reason })
+        ])
+      ]);
+    });
+
+    table("Championship after this round", (r.standingsAfter || []).slice(0, 5), function (x) {
+      return el("div", { class: "li" }, [
+        el("span", { class: "num", text: String(x.pos) }),
+        el("div", { class: "grow" }, [el("b", { text: driverName(x.driver) })]),
+        el("span", { class: "pts", text: String(x.points) })
+      ]);
+    });
+
+    if (!chk) body.appendChild(el("button", {
+      class: "btn primary wide", style: "margin-top:18px", text: "Check this round",
+      onclick: function () { closeSheet(); startCheck(rd); }
+    }));
+    body.appendChild(el("button", { class: "btn wide ghost", style: "margin-top:10px",
+      text: "Close", onclick: closeSheet }));
+
+    openSheet(body);
   }
 
   /* ------------------------------------------------------------- record */
@@ -1758,34 +1815,30 @@
     body.appendChild(seg);
 
     body.appendChild(el("div", { class: "stack", style: "margin-top:20px" }, [
-      el("button", { class: "btn wide", text: "Export everything", onclick: function () { exportSheet("all"); } }),
-      el("button", { class: "btn wide", text: "Export the 2026 results", onclick: function () { exportSheet("results"); } }),
+      el("button", { class: "btn wide", text: "Export your record", onclick: exportSheet }),
       el("button", { class: "btn wide", text: "Import from JSON", onclick: importSheet }),
       el("button", { class: "btn wide ghost", text: "Reset progress", onclick: confirmReset })
     ]));
 
     body.appendChild(el("p", { class: "small muted", style: "margin-top:18px", text:
-      "Apex runs on the race calendar. There is no daily streak, nothing expires overnight, " +
-      "and a check only opens once you have entered a result. Everything is stored on this " +
-      "device only." }));
+      "Apex runs on the race calendar. There is no daily streak and nothing expires overnight. " +
+      "Results are official — they come from F1DB with the app, so a check can never be graded " +
+      "against a mistake of your own. Your scores are stored on this device only." }));
 
     body.appendChild(el("button", { class: "btn wide", style: "margin-top:14px", text: "Close", onclick: closeSheet }));
     openSheet(body);
   }
 
-  function exportSheet(what) {
-    var payload = what === "results"
-      ? JSON.stringify(state.results["2026"] || {}, null, 2)
-      : JSON.stringify(state, null, 2);
+  function exportSheet() {
+    var payload = JSON.stringify(state, null, 2);
     var ta = el("textarea", { style: "width:100%;height:220px;border-radius:10px;padding:10px;background:var(--surface2);border:1px solid var(--line);color:var(--ink);font-family:var(--mono);font-size:12px" });
     ta.value = payload;
     var body = el("div", {}, [
       el("div", { class: "sheet-grip" }),
-      el("h2", { class: "title", style: "font-size:20px;margin:0 0 4px",
-        text: what === "results" ? "2026 results" : "Everything" }),
-      el("p", { class: "sub", style: "margin-bottom:12px", text: what === "results"
-        ? "Paste this into the \"results\" field of data/season-2026.json to keep it with the repo."
-        : "Your whole record. Keep it somewhere safe, or import it on another device." }),
+      el("h2", { class: "title", style: "font-size:20px;margin:0 0 4px", text: "Your record" }),
+      el("p", { class: "sub", style: "margin-bottom:12px",
+        text: "Check scores and what you still owe. Results are not in here — they are official " +
+          "and ship with the app." }),
       ta,
       el("div", { class: "stack", style: "margin-top:12px" }, [
         el("button", { class: "btn primary wide", text: "Copy", onclick: function () {
@@ -1807,22 +1860,17 @@
       el("div", { class: "sheet-grip" }),
       el("h2", { class: "title", style: "font-size:20px;margin:0 0 4px", text: "Import" }),
       el("p", { class: "sub", style: "margin-bottom:12px",
-        text: "A full export replaces everything. A results-only export merges into the 2026 season." }),
+        text: "Replaces your check record on this device." }),
       ta,
       el("div", { class: "stack", style: "margin-top:12px" }, [
         el("button", { class: "btn primary wide", text: "Import", onclick: function () {
           var parsed;
           try { parsed = JSON.parse(ta.value); } catch (e) { toast("That is not valid JSON"); return; }
-          if (parsed && parsed.v && parsed.items) {
+          if (parsed && parsed.v === 3 && parsed.checks) {
             state = parsed;
             save(); rebuildBank(); applyTheme(); closeSheet(); render();
             toast("Imported");
-          } else if (parsed && typeof parsed === "object") {
-            var res = results2026();
-            Object.keys(parsed).forEach(function (k) { res[k] = parsed[k]; });
-            save(); rebuildBank(); closeSheet(); render();
-            toast("Results merged");
-          } else toast("Nothing recognisable in there");
+          } else toast("That is not an Apex record");
         } }),
         el("button", { class: "btn wide ghost", text: "Back", onclick: settingsSheet })
       ])
@@ -1835,13 +1883,11 @@
       el("div", { class: "sheet-grip" }),
       el("h2", { class: "title", style: "font-size:20px;margin:0 0 6px", text: "Reset progress?" }),
       el("p", { class: "explain", style: "margin-bottom:16px",
-        text: "This clears every check score and everything you owe. The race results you " +
-          "entered are kept, so the checks simply open again." }),
+        text: "This clears every check score and everything you owe. The official results are " +
+          "untouched, so every check simply opens again." }),
       el("div", { class: "stack" }, [
         el("button", { class: "btn wide", style: "color:var(--bad)", text: "Reset", onclick: function () {
-          var keep = state.results;
           state = freshState();
-          state.results = keep;
           save(); rebuildBank(); closeSheet(); view = "race"; render();
           toast("Reset");
         } }),
@@ -1920,11 +1966,6 @@
     ]).then(function (d) {
       DATA.champs = d[0]; DATA.lineups = d[1]; DATA.circuits = d[2]; DATA.season = d[3];
       DATA.circuits.circuits.forEach(function (c) { CIRC[c.id] = c; });
-
-      /* results shipped in the data file seed the device, without overwriting it */
-      var seeded = DATA.season.results || {};
-      var mine = results2026();
-      Object.keys(seeded).forEach(function (k) { if (!mine[k]) mine[k] = seeded[k]; });
 
       rebuildBank();
       render();

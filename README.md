@@ -89,21 +89,59 @@ Distractors are re-drawn every time a question is asked, so you cannot learn
 "the answer is the third one". Ordering questions are all-or-nothing: one place
 out is a miss, and the right order is shown against yours.
 
-## Entering the results
+## The answer key is official, and you cannot touch it
 
-The season file ships with the calendar and the entry list but no results —
-that is the part you keep up to date, and it is what opens the next check.
-**Season → a round → Add**, then tap drivers in order. Three deep is enough for
-podium and winner questions; go to ten if you want to be tested that far down.
-Qualifying and sprint are separate and optional.
+This is the most important thing about the app, and the thing it originally got
+wrong. The first version had you type each result in yourself and then graded
+your recall **against your own entry**. If you misremembered while entering, the
+check confirmed the mistake and kept confirming it. A memory trainer whose
+ground truth was your own memory is worse than useless.
 
-The standings on the Season tab are computed from whatever you have entered,
-sprint points included.
+Results now come from [**F1DB**](https://github.com/f1db/f1db) (CC BY 4.0), the
+open Formula 1 results database. `build/f1db.mjs` generates every factual file
+in `data/` from it. There is no result-entry screen anywhere in the app, nothing
+in device storage can influence a correct answer, and a test writes a forged
+result into `localStorage` to prove it changes nothing.
 
-To keep results with the repo rather than only on the phone,
-**Settings → Export the 2026 results** and paste the JSON into the `results`
-field of `data/season-2026.json`. Anything there seeds a fresh device without
-overwriting what that device already has.
+```bash
+npm run data       # pull the latest official data and regenerate data/
+```
+
+`.github/workflows/results.yml` runs that on Monday and Tuesday mornings. When a
+round has landed it commits the new results and the site redeploys — which is
+how a race becomes checkable. Nothing to enter, ever.
+
+### What it corrected
+
+Regenerating from official data immediately fixed things I had written by hand
+and got wrong:
+
+| | Was | Actually |
+|---|---|---|
+| 2026 calendar | 24 rounds, my running order | **23 rounds**, and round 16 is at **Sepang** |
+| Jeddah, Miami, Abu Dhabi | clockwise | **anti-clockwise** |
+| Bahrain | racing in 2026 | **not on the 2026 calendar** |
+| Spielberg, Singapore | my lap lengths | official lap lengths |
+| Title margins | hand-copied trivia | subtracted from the official points |
+
+Two bugs in the generator itself surfaced the same way. F1DB writes a classified
+finish as a number and everything else as a code — `DNF`, `DNS`, `NC`, `DSQ`,
+`PL` — and my first pass treated those as finishing positions, which put
+retirements in the results and would have put one on a podium question. And
+2018 Force India appears as two entrants against one constructor, which read as
+Ocon and Pérez each holding two seats. The data checks caught both.
+
+## What gets checked
+
+Because the results are official, the questions can be computed rather than
+recalled:
+
+- **Biggest mover** uses the official grid position on each result row, not one
+  inferred from qualifying order — so a pit-lane start is handled properly
+- **Championship after this round** is F1DB's table for that weekend, so a
+  penalty or an appeal is reflected exactly as it happened
+- **Retirements** carry the official reason
+- **Title margins** are subtracted from the official points
 
 ## Type
 
@@ -113,14 +151,18 @@ a test asserts it.
 
 ## About the rest of the data
 
-The standings, grids and circuit facts were written by hand into `data/` — no
-timing feed was reachable when this was built. Facts that overlap with the
-survey data are cross-checked against it. If you find something wrong, it is
-one line in `data/`, and it flows straight through to the questions;
-`node build/test-data.mjs` will tell you if the fix contradicts something else.
+Nothing in `data/` is written by hand any more. Championships, grids, the
+calendar, circuit lengths, corner counts, race distances, direction and which
+seasons each circuit has hosted are all generated from F1DB. The one exception
+is the circuit **outlines**, which come from OpenStreetMap (see above), and the
+short written character note on each circuit.
 
-Some seasons carry more detail than others: standings 2008–2024 include points,
-2025 is order only.
+`node build/test-data.mjs` is the guard. It checks the generated results the
+hardest, because they are the answer key: finishing positions run 1..n with no
+driver twice, every finisher is a known driver on a known team, points never
+rise down the order, a retired driver is never also a finisher, a sprint result
+only exists where the calendar says so, and no result exists for a race that has
+not happened yet.
 
 ## Open it
 
@@ -154,11 +196,13 @@ LAN address it will not register.
 index.html               app shell
 app.css                  all styling; tokens for dark, light and system
 app.js                   question bank, scheduling, and every view
-data/champions.json      final standings 2008-2025, plus the famous title margins
-data/lineups.json        every team's pairing 2008-2026, with mid-season changes
-data/circuits.json       32 circuits: facts, and outlines built from the geojson
+data/champions.json      final standings and title margins 2008-2025  [generated]
+data/lineups.json        every team's pairing 2008-2026                 [generated]
+data/circuits.json       32 circuits: facts [generated], outlines, character notes
 data/f1-circuits.geojson OpenStreetMap survey coordinates (MIT, see above)
-data/season-2026.json    the 2026 calendar and entry list; results land here
+data/season-2026.json    calendar, entry list and official results      [generated]
+build/f1db.mjs           regenerates all of the above from F1DB
+vendor/                  the F1DB clone it reads; gitignored
 manifest.webmanifest     name, icons, standalone display
 sw.js                    offline cache. Bump CACHE when you change an asset.
 icons/                   app icons, generated by build/icons.mjs
@@ -172,6 +216,8 @@ npm install playwright         # only needed for the browser tests
 node build/test-data.mjs       # data invariants, including the lap-length check
 node build/test.mjs            # full flow in a real browser: every section, entry, every tab
 node build/test-subpath.mjs    # served under /Apex-F1/, then with the server killed
+node build/f1db.mjs --fetch   # pull official data and regenerate data/
+node build/f1db.mjs --check   # report what would change, write nothing
 node build/maps.mjs --report   # rebuild outlines from survey coordinates
 node build/icons.mjs           # regenerate the app icons
 ```
@@ -192,3 +238,12 @@ cached copy.
 Circuit geometry © OpenStreetMap contributors, via
 [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT).
 Not affiliated with Formula 1.
+
+## Credits
+
+- Results, calendars, standings, grids and circuit facts:
+  [**F1DB**](https://github.com/f1db/f1db) — CC BY 4.0
+- Circuit outlines: OpenStreetMap contributors, via
+  [**bacinger/f1-circuits**](https://github.com/bacinger/f1-circuits) — MIT
+
+Neither is affiliated with Formula 1. This is a personal study tool.

@@ -32,11 +32,12 @@ for (const s of champs.seasons) {
   check(`${s.year} constructor points never rise down the order`,
     cpts.every((p, i) => i === 0 || p <= cpts[i - 1]), cpts.join(","));
 }
-check("every margin refers to a real season and its actual top two",
-  champs.margins.every((m) => {
-    const s = champs.seasons.find((x) => x.year === m.year);
-    return s && s.drivers[0].driver === m.champion && s.drivers[1].driver === m.runnerUp;
-  }));
+for (const s of champs.seasons) {
+  if (s.margin == null) continue;
+  check(`${s.year} title margin is the actual points difference`,
+    Math.abs(s.margin - (s.drivers[0].points - s.drivers[1].points)) < 0.01,
+    `${s.margin} vs ${s.drivers[0].points} - ${s.drivers[1].points}`);
+}
 
 /* ---------------------------------------------------------------- lineups */
 check("lineups cover 2008-2026", lineups.seasons.length === 19 &&
@@ -102,12 +103,13 @@ for (const c of circuits.circuits) {
     `${(len / 1000).toFixed(3)} km traced vs ${c.lengthKm} km stated`);
 }
 
+const N = season.rounds.length;
 const rounds = circuits.circuits.filter((c) => c.round2026).map((c) => c.round2026).sort((a, b) => a - b);
-check("2026 rounds are exactly 1..24", rounds.length === 24 && rounds.every((r, i) => r === i + 1));
+check(`2026 rounds are exactly 1..${N}`, rounds.length === N && rounds.every((r, i) => r === i + 1));
 
 /* ----------------------------------------------------------------- season */
-check("calendar has 24 rounds numbered in order",
-  season.rounds.length === 24 && season.rounds.every((r, i) => r.round === i + 1));
+check("calendar rounds are numbered in order",
+  season.rounds.every((r, i) => r.round === i + 1), `${N} rounds`);
 check("every round points at a real circuit",
   season.rounds.every((r) => ids.includes(r.circuit)),
   season.rounds.filter((r) => !ids.includes(r.circuit)).map((r) => r.circuit).join(","));
@@ -124,6 +126,85 @@ check("the 2026 entry list matches the 2026 grid", (() => {
   const entry = season.drivers.map((d) => d.name);
   return grid.length === entry.length && grid.every((d) => entry.includes(d));
 })());
+
+/* ------------------------------------------------- the official results
+   These are the answer key. If they are wrong, every check is wrong, so
+   they get checked harder than anything else here. */
+check("results are generated, not hand-written",
+  /F1DB/.test(season.source || "") && /do not edit/i.test(season.source || ""), season.source);
+
+const driverIds = new Set(season.drivers.map((d) => d.id));
+const teamIds = new Set(season.teams.map((t) => t.id));
+const resultRounds = Object.keys(season.results).map(Number).sort((a, b) => a - b);
+check("every result belongs to a real round",
+  resultRounds.every((r) => season.rounds.some((x) => x.round === r)), resultRounds.join(","));
+check("results stop at the last round run, with no gaps",
+  resultRounds.every((r, i) => r === i + 1), resultRounds.join(","));
+
+const today = new Date().toISOString().slice(0, 10);
+check("no result exists for a race that has not happened",
+  resultRounds.every((r) => season.rounds.find((x) => x.round === r).date <= today),
+  resultRounds.filter((r) => season.rounds.find((x) => x.round === r).date > today).join(","));
+
+for (const r of resultRounds) {
+  const res = season.results[r];
+  const pos = res.race.map((x) => x.pos);
+  check(`round ${r} finishing positions are 1..n`, pos.every((p, i) => p === i + 1), pos.join(","));
+  check(`round ${r} no driver finishes twice`,
+    uniq(res.race.map((x) => x.driver)).length === res.race.length);
+  check(`round ${r} every finisher is a known driver`,
+    res.race.every((x) => driverIds.has(x.driver)),
+    res.race.filter((x) => !driverIds.has(x.driver)).map((x) => x.driver).join(","));
+  check(`round ${r} every finisher has a known team`,
+    res.race.every((x) => teamIds.has(x.team)),
+    res.race.filter((x) => !teamIds.has(x.team)).map((x) => x.team).join(","));
+  check(`round ${r} points never rise down the order`,
+    res.race.every((x, i) => i === 0 || x.points <= res.race[i - 1].points),
+    res.race.slice(0, 12).map((x) => x.points).join(","));
+  check(`round ${r} grid positions are plausible`,
+    res.race.every((x) => x.grid === null || (x.grid >= 1 && x.grid <= 30)),
+    res.race.map((x) => x.grid).join(","));
+
+  if (res.quali.length) {
+    const qp = res.quali.map((x) => x.pos);
+    check(`round ${r} qualifying positions are 1..n`, qp.every((p, i) => p === i + 1), qp.join(","));
+    /* The pole-sitter has to be accounted for somewhere - classified or
+       retired. Canada 2026 is the case that matters: Russell took pole and
+       went out with an engine failure. */
+    check(`round ${r} pole-sitter is accounted for`,
+      res.race.some((x) => x.driver === res.quali[0].driver) ||
+      (res.retired || []).some((x) => x.driver === res.quali[0].driver),
+      `${res.quali[0].driver} is in neither the result nor the retirements`);
+  }
+  check(`round ${r} sprint only where the calendar says so`,
+    (res.sprint.length > 0) === !!season.rounds.find((x) => x.round === r).sprint);
+  check(`round ${r} a retired driver is not also a finisher`,
+    (res.retired || []).every((x) => !res.race.some((y) => y.driver === x.driver)),
+    (res.retired || []).map((x) => x.driver).join(","));
+  check(`round ${r} standings after are ordered by points`,
+    res.standingsAfter.every((x, i) => i === 0 || x.points <= res.standingsAfter[i - 1].points),
+    res.standingsAfter.map((x) => x.points).join(","));
+}
+
+/* The championship table has to be the sum of what actually happened. */
+const scored = {};
+for (const r of resultRounds) {
+  for (const x of season.results[r].race) scored[x.driver] = (scored[x.driver] || 0) + (x.points || 0);
+}
+const table = season.standings.drivers;
+check("standings are ordered by points",
+  table.every((x, i) => i === 0 || x.points <= table[i - 1].points),
+  table.slice(0, 6).map((x) => x.points).join(","));
+check("championship leader is the driver with the most race points, or close to it",
+  (() => {
+    const top = Object.keys(scored).sort((a, b) => scored[b] - scored[a])[0];
+    /* sprint points are scored separately, so allow the sprint gap */
+    return table[0].driver === top || Math.abs(scored[table[0].driver] - scored[top]) <= 60;
+  })(), `${table[0].driver} leads on ${table[0].points}; most race points: ${
+    Object.keys(scored).sort((a, b) => scored[b] - scored[a])[0]}`);
+check("every driver in the standings raced",
+  table.every((x) => driverIds.has(x.driver)),
+  table.filter((x) => !driverIds.has(x.driver)).map((x) => x.driver).join(","));
 
 console.log(fails ? `\n${fails} failing check(s)` : "\nall data checks passed");
 process.exit(fails ? 1 : 0);

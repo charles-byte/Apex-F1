@@ -99,11 +99,11 @@ await page.waitForSelector(".nextrace", { timeout: 8000 });
 check("opens with the server shut down", true);
 check("served entirely from cache", served === before, `${served - before} reached the server`);
 check("questions still work offline",
-  (await page.locator(".strip .cell").count()) === 24);
+  (await page.locator(".strip .cell").count()) === 23);
 await page.locator(".nav button", { hasText: "Circuits" }).click();
 await page.waitForSelector(".trackgrid");
 check("circuit maps are cached too",
-  (await page.locator(".trackcard").count()) === 24);
+  (await page.locator(".trackcard").count()) === 23);
 
 await browser.close();
 console.log(failures ? `\n${failures} failing check(s)` : "\nall sub-path checks passed");
