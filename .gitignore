@@ -1,5 +1,4 @@
 node_modules/
-package-lock.json
 
 # screenshots and the map contact sheet are build output, not source
 build/shots/

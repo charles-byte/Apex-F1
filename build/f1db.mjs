@@ -52,6 +52,15 @@ const maybe = (p) => (existsSync(SRC + "/" + p) ? load(p) : null);
    count as a finishing position. */
 const placed = (v) => (Number.isInteger(v) ? v : null);
 
+/* js-yaml turns an unquoted `date: 2026-03-08` into a Date, and a quoted one
+   into a string, so the generated JSON changed shape depending on how upstream
+   happened to quote it. Everything downstream compares dates as plain
+   YYYY-MM-DD text, so pin them to that. */
+const ymd = (v) => {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+};
+
 /* ------------------------------------------------------------- lookups */
 const driverCache = new Map();
 function driver(id) {
@@ -87,7 +96,7 @@ for (const dir of raceDirs) {
     round: r.round,
     gp: grandPrix(r.grandPrixId),
     circuit: r.circuitId,
-    date: r.date,
+    date: ymd(r.date),
     laps: r.laps,
     sprint: existsSync(`${SRC}/${base}/sprint-race-results.yml`)
   });
@@ -294,11 +303,15 @@ for (const rd of rounds) {
 }
 
 /* ------------------------------------------------------------- write */
+/* "generated" means the day the data last changed, not the day the generator
+   last ran - otherwise a quiet week between races would still rewrite all
+   three files and the refresh workflow would commit nothing but a new date. */
+const undated = (t) => t.replace(/^\s*"generated": "\d{4}-\d{2}-\d{2}",?\n/m, "");
 function put(file, value) {
   const path = ROOT + "data/" + file;
   const next = JSON.stringify(value, null, 2) + "\n";
   const prev = existsSync(path) ? readFileSync(path, "utf8") : "";
-  const changed = prev !== next;
+  const changed = undated(prev) !== undated(next);
   if (changed && !checkOnly) writeFileSync(path, next);
   console.log(`  ${changed ? (checkOnly ? "would change" : "written") : "unchanged"}  ${file}`);
   return changed;

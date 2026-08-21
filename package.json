@@ -9,7 +9,9 @@
     "test:data": "node build/test-data.mjs"
   },
   "devDependencies": {
-    "js-yaml": "^4.1.0",
     "playwright": "^1.49.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
   }
 }

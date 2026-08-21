@@ -117,6 +117,11 @@ check("calendar and circuit rounds agree", season.rounds.every((r) => {
   const c = circuits.circuits.find((x) => x.id === r.circuit);
   return c.round2026 === r.round;
 }));
+/* Dates have to stay plain YYYY-MM-DD: the YAML parser will hand back a Date
+   object for an unquoted date, and the whole app compares them as text. */
+check("race dates are plain YYYY-MM-DD",
+  season.rounds.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date)),
+  season.rounds.map((r) => r.date).filter((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d)).join(","));
 const dates = season.rounds.map((r) => Date.parse(r.date));
 check("race dates run forwards", dates.every((d, i) => i === 0 || d > dates[i - 1]));
 check("driver codes are unique", uniq(season.drivers.map((d) => d.code)).length === season.drivers.length);

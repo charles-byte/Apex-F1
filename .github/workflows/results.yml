@@ -26,6 +26,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      # f1db.mjs parses YAML; playwright is a dev dependency and not needed here
+      - name: Install
+        run: npm install --omit=dev --no-audit --no-fund
 
       - name: Pull the official data
         run: node build/f1db.mjs --fetch
